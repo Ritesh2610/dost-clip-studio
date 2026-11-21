@@ -69,6 +69,7 @@ class FakeEngine:
         self.duration = 120.0
         self.moments = [dict(m) for m in MOMENTS]
         self.reported_url = VIDEO_URL
+        self.sound_shares: list[float] = []
         self._lock = threading.Lock()
 
     def install(self, monkeypatch) -> None:
@@ -156,9 +157,12 @@ class FakeEngine:
             "caption_label": "",
         }
 
-    def download_audio(self, url: str, work_dir: Path) -> Path:
+    def download_audio(self, url: str, work_dir: Path, progress=None) -> Path:
         self._enter("download_audio", url, work_dir)
         assert Path(work_dir).is_dir()
+        if progress is not None:
+            for share in self.sound_shares:
+                progress(share)
         target = Path(work_dir) / "audio.m4a"
         target.write_bytes(b"AUDIO")
         return target
@@ -1491,6 +1495,48 @@ def test_a_running_job_shows_its_step_and_progress(studio):
     }
     studio.fake.let_go()
     assert studio.wait(job_id)["state"] == "done"
+
+
+def test_the_sound_download_shows_how_far_it_is_and_logs_every_tenth(studio):
+    studio.fake.sound_shares = [0.0, 0.05, 0.42, 0.42, 0.97, 1.0, 7.0]
+    entered = studio.fake.hold("audio_levels")
+    job_id = studio.call("POST", "/api/analyze", data=ANALYZE).json()["jobId"]
+    assert entered.wait(WAIT)
+    studio.fake.let_go()
+    assert studio.wait(job_id)["state"] == "done"
+    lines = [line.split("]", 1)[1].strip() for line in studio.log_text.splitlines() if "sound of the video:" in line]
+    assert lines == [f"sound of the video: {percent}% downloaded" for percent in (40, 90, 100)]
+
+
+def test_the_sound_download_updates_the_job_at_most_once_a_second(studio):
+    seen = []
+
+    def work(job):
+        report = studio.app._sound_progress(job, 0.2, 0.55)
+        for share, pause in ((0.1, 0), (0.5, 0), (0.9, 1.05), (1.0, 0)):
+            time.sleep(pause)
+            report(share)
+            seen.append((job.step, round(job.progress, 3)))
+
+    job = studio.app.jobs.submit("analyze", work)
+    assert studio.wait(job.id)["state"] == "done"
+    assert seen == [
+        ("Getting the sound of the video: 10%", 0.235),
+        ("Getting the sound of the video: 10%", 0.235),
+        ("Getting the sound of the video: 90%", 0.515),
+        ("Getting the sound of the video: 90%", 0.515),
+    ]
+
+
+def test_cancel_stops_the_sound_download_while_it_runs(studio):
+    studio.fake.sound_shares = [0.3]
+    entered = studio.fake.hold("download_audio")
+    job_id = studio.call("POST", "/api/analyze", data=ANALYZE).json()["jobId"]
+    assert entered.wait(WAIT)
+    assert studio.call("POST", f"/api/jobs/{job_id}/cancel").status == 200
+    studio.fake.let_go()
+    assert studio.wait(job_id)["state"] == "cancelled"
+    assert studio.fake.named("audio_levels") == [], "the download must stop at its next progress report"
 
 
 def test_analyze_jobs_queue_and_run_in_the_order_they_were_sent(studio):

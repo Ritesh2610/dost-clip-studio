@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Changed
+
+- Analysing a long stream is much faster. Its sound arrives as thousands of small pieces, and the app now fetches eight of them at a time.
+- The app and the log show how far the sound download is, and Cancel stops it while it runs.
+
 ### Fixed
 
 - Cutting a part out of a YouTube video no longer fails with "ffmpeg is not installed" on a computer that has no ffmpeg of its own. The ffmpeg that is installed with the app is now used for this step too.

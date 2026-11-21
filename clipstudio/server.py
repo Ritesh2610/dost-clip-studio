@@ -621,7 +621,13 @@ class App:
                 try:
                     if request.url is not None:
                         job.update("Getting the sound of the video", 0.2)
-                        audio: Path | str = engine.download_audio(source["url"], work)
+                        if duration >= 3600:
+                            self.log(
+                                f"[analyze] the video is {duration / 3600:.1f} hours long, so this step takes a while"
+                            )
+                        audio: Path | str = engine.download_audio(
+                            source["url"], work, progress=self._sound_progress(job, 0.2, 0.55)
+                        )
                     else:
                         audio = Path(source["path"])
                     job.update("Listening for loud moments", 0.55)
@@ -659,6 +665,36 @@ class App:
                 }
             finally:
                 shutil.rmtree(work, ignore_errors=True)
+
+    def _sound_progress(self, job: Job, low: float, high: float) -> Callable[[float], None]:
+        """Makes the function that the sound download calls with the share that has arrived.
+
+        It shows the share in the job, at most once a second, writes every tenth to the log, and stops the
+        download when the job has been cancelled. It may be called from several threads at once.
+        """
+        lock = threading.Lock()
+        last = {"shown": 0.0, "tenth": 0}
+
+        def report(share: float) -> None:
+            share = max(0.0, min(1.0, share))
+            now = time.monotonic()
+            with lock:
+                show = now - last["shown"] >= 1.0
+                tenth = int(share * 10)
+                log = tenth > last["tenth"]
+                if show:
+                    last["shown"] = now
+                if log:
+                    last["tenth"] = tenth
+            if log:
+                self.log(f"[analyze] sound of the video: {tenth * 10}% downloaded")
+            if show:
+                percent = round(share * 100)
+                job.update(f"Getting the sound of the video: {percent}%", low + (high - low) * share)
+            else:
+                job.check()
+
+        return report
 
     def _trusted_url(self, reported: object, fallback: str) -> str:
         """The address the video site reports for the video, if it also passes the link rules."""

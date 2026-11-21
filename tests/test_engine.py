@@ -2150,6 +2150,62 @@ def test_download_audio_leaves_nothing_behind_when_the_download_breaks(
     assert folder_names(tmp_path) == ["notes.txt"], "the .part file of the broken download must be removed"
 
 
+def test_download_audio_reports_how_much_has_arrived(ytdlp: Any, http_server: Any, tmp_path: Path) -> None:
+    shares: list[float] = []
+    path = engine.download_audio(http_server.url("sample.mp4"), tmp_path, progress=shares.append)
+    assert path.is_file() and shares, "the progress function was never called"
+    assert all(0.0 <= share <= 1.0 for share in shares) and shares[-1] == 1.0
+    assert shares == sorted(shares), "the share never goes backwards for a file that arrives in one piece"
+
+
+def test_download_audio_stops_when_the_progress_function_raises(ytdlp: Any, http_server: Any, tmp_path: Path) -> None:
+    class Stop(Exception):
+        pass
+
+    def stop(share: float) -> None:
+        raise Stop
+
+    (tmp_path / "notes.txt").write_text("mine", encoding="utf-8")
+    with pytest.raises(Stop):
+        engine.download_audio(http_server.url("sample.mp4"), tmp_path, progress=stop)
+    assert folder_names(tmp_path) == ["notes.txt"], "nothing of the stopped download may be left behind"
+
+
+def test_download_audio_fetches_several_pieces_of_a_stream_at_once(
+    ytdlp: Any, http_server: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[dict[str, Any]] = []
+    real = ytdlp.YoutubeDL
+
+    class Spy(real):  # type: ignore[misc, valid-type]
+        def __init__(self, params: dict[str, Any]) -> None:
+            seen.append(params)
+            super().__init__(params)
+
+    monkeypatch.setattr(ytdlp, "YoutubeDL", Spy)
+    engine.download_audio(http_server.url("sample.mp4"), tmp_path)
+    assert seen[0]["concurrent_fragment_downloads"] == engine.AUDIO_PIECES_AT_ONCE >= 4
+
+
+@pytest.mark.parametrize(
+    ("status", "expected"),
+    [
+        ({"status": "downloading", "fragment_index": 728, "fragment_count": 7282}, 728 / 7282),
+        ({"status": "downloading", "fragment_index": 9, "fragment_count": 3}, 1.0),
+        ({"status": "downloading", "downloaded_bytes": 250, "total_bytes": 1000}, 0.25),
+        ({"status": "downloading", "downloaded_bytes": 250, "total_bytes_estimate": 500.0}, 0.5),
+        ({"status": "downloading", "downloaded_bytes": 250, "total_bytes": None}, None),
+        ({"status": "downloading", "downloaded_bytes": "x", "total_bytes": 100}, 0.0),
+        ({"status": "downloading"}, None),
+        ({"status": "finished", "downloaded_bytes": 1, "total_bytes": 9}, 1.0),
+        ("not a report", None),
+        (None, None),
+    ],
+)
+def test_download_share(status: Any, expected: float | None) -> None:
+    assert engine._download_share(status) == expected
+
+
 def test_download_audio_from_an_unreachable_address(ytdlp: Any, tmp_path: Path) -> None:
     with pytest.raises(ytdlp.utils.DownloadError) as caught:
         engine.download_audio(f"http://127.0.0.1:{free_port()}/sample.mp4", tmp_path)
