@@ -767,6 +767,8 @@ def test_unknown_api_routes_are_a_json_404(studio, method, path):
     "request_bytes",
     [
         b"GARBAGE\r\n\r\n",
+        b"GET /\r\n\r\n",  # HTTP/0.9, which has no status line and no headers
+        b"POST /api/analyze\r\n\r\n",
         b"GET / HTTP/9.9\r\nHost: x\r\n\r\n",
         b"GET /" + b"a" * 70000 + b" HTTP/1.1\r\nHost: x\r\n\r\n",
         b"GET / HTTP/1.1\r\nHost: x\r\n" + b"X-Long: " + b"a" * 70000 + b"\r\n\r\n",
@@ -2396,9 +2398,9 @@ def test_cleanup_removes_a_link_but_not_what_it_points_at(studio):
         link.symlink_to(target, target_is_directory=True)
     except (OSError, NotImplementedError):
         pytest.skip("this system does not allow making symbolic links")
-    old = time.time() - 100 * 3600
-    os.utime(link, (old, old), follow_symlinks=False)
-    assert studio.app.cleanup() == [link]
+    # the clock is moved instead of the link's own time, which Windows cannot set without following the link
+    assert studio.app.cleanup() == []
+    assert studio.app.cleanup(now=time.time() + 100 * 3600) == [link]
     assert not link.is_symlink() and (target / "file.txt").read_text(encoding="utf-8") == "keep"
 
 
