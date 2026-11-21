@@ -1,0 +1,36 @@
+name: Feature request
+description: Suggest a change or an addition.
+title: "Feature: "
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for the idea. Two things are outside what this project will do: posting or scheduling clips for you, and anything that helps clip videos without the owner's permission. See docs/RESPONSIBLE_USE.md for the reasons.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the task and where the app gets in the way today.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like the app to do?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What do you do today instead?
+      description: Workarounds or other tools you use for this.
+    validations:
+      required: false
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Would you like to work on it?
+      options:
+        - label: I can open a pull request for this.
+          required: false
