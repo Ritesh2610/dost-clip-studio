@@ -137,7 +137,7 @@ Browser                        server.py                    jobs.py             
 - There is one worker thread for each kind of job. One analysis and one render can run at the same time. Further jobs of the same kind wait in the order they arrived.
 - At most 10 jobs of a kind can wait. A request beyond that is refused.
 - The app remembers up to 50 jobs. When the list is full, the oldest finished job is forgotten.
-- Cancelling is cooperative. A waiting job is cancelled at once. A running job stops at its next checkpoint, which is between steps, so a download or an ffmpeg run that has started is allowed to finish first.
+- Cancelling is cooperative. A waiting job is cancelled at once. A running job stops at its next checkpoint. Checkpoints sit between steps and inside the sound download of an analysis, which reports its progress many times a second. A clip download or an ffmpeg run that has started is allowed to finish first.
 - Jobs live in memory. Restarting the app forgets them.
 - The job's work folder, `data/work/job-<id>/`, is removed when the job ends, whether it finished, failed or was cancelled.
 
