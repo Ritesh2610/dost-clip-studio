@@ -1,0 +1,111 @@
+name: Bug report
+description: Something does not work the way the README says it should.
+title: "Bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report this.
+
+        Before you send it, read through what you pasted. Do not paste private or unlisted video links, and remove anything personal from the log lines, such as your user name in folder paths. If you need a link to show the problem, use a public video.
+
+        Do not report security problems here. See SECURITY.md.
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating system
+      options:
+        - Windows 11
+        - Windows 10
+        - macOS
+        - Linux
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: os-detail
+    attributes:
+      label: Operating system version
+      description: For example "Windows 11 24H2", "macOS 15.1" or "Ubuntu 24.04".
+    validations:
+      required: false
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      description: Run `python --version` and paste the result.
+      placeholder: Python 3.13.1
+    validations:
+      required: true
+  - type: input
+    id: app-version
+    attributes:
+      label: Dost Clip Studio version
+      description: The version the app shows, or the one at the top of CHANGELOG.md.
+      placeholder: 1.0.0
+    validations:
+      required: true
+  - type: textarea
+    id: tools
+    attributes:
+      label: Tool versions shown in the app
+      description: The app shows the versions of yt-dlp, ffmpeg and Deno that it found. Copy them here. Say so if one is shown as missing.
+      placeholder: |
+        yt-dlp 2026.10.26
+        ffmpeg 7.0.2
+        Deno 2.3.1
+    validations:
+      required: true
+  - type: dropdown
+    id: source
+    attributes:
+      label: What were you clipping?
+      options:
+        - A YouTube video
+        - A finished YouTube stream
+        - A video file from my computer
+        - It happens before I choose a video
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you did, one step per line, starting from opening the app.
+      placeholder: |
+        1. Started the app with start.bat
+        2. Pasted a link to a 2 hour finished stream
+        3. Chose 30 second clips and pressed the button to find moments
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected to happen
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What happened instead
+      description: Include the exact message the app showed.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant lines from clip-log.txt
+      description: The app writes a log file called clip-log.txt. Paste only the lines from around the time of the problem. Remove private links and personal details first.
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you submit
+      options:
+        - label: I read the troubleshooting section of the README.
+          required: true
+        - label: I removed private links and personal details from this report.
+          required: true

@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dost Clip Studio: turn a long video into shorts</title>
+  <meta name="description" content="A free app for your own computer. It finds the strongest moments in a long video and turns the ones you choose into vertical shorts with captions.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect x='3' y='3' width='58' height='58' rx='14' fill='%23FFC42E' stroke='%231D1856' stroke-width='5'/%3E%3Cpath d='M23 46V18h11a8.5 8.5 0 0 1 0 17H23m11 0 8 11' fill='none' stroke='%231D1856' stroke-width='6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #1D1856; --ink-2: #4B4680; --bg: #F4F2FB; --card: #FFFFFF; --line: #DCD8F0;
+      --sun: #FFC42E; --rani: #D2185C; --rani-deep: #A80F47; --teal: #0B8A7A;
+      --display: "Bricolage Grotesque", "Instrument Sans", system-ui, sans-serif;
+      --body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --mono: ui-monospace, "Cascadia Code", "SF Mono", Menlo, Consolas, monospace;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); scroll-behavior: smooth; }
+    body { margin: 0; font-family: var(--body); font-size: 1.0625rem; line-height: 1.55; color: var(--ink); background: var(--bg); -webkit-font-smoothing: antialiased; }
+    h1, h2, h3, p, ul, ol, figure { margin: 0; }
+    a { color: inherit; text-underline-offset: 3px; }
+    :focus-visible { outline: 3px solid var(--rani); outline-offset: 2px; border-radius: 6px; }
+    img { display: block; max-width: 100%; height: auto; }
+    code { font-family: var(--mono); font-size: .92em; padding: .08em .35em; background: #ECE9F8; border-radius: .3rem; }
+
+    .skip { position: absolute; left: -999rem; top: .5rem; padding: .5rem .8rem; color: #fff; background: var(--ink); border-radius: .5rem; }
+    .skip:focus { left: .5rem; z-index: 5; }
+    .wrap { max-width: 68rem; margin: 0 auto; padding: 0 1.25rem; }
+
+    .top { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem 1rem; padding-block: 1.1rem; font-weight: 600; }
+    .top nav { display: flex; flex-wrap: wrap; gap: 1.1rem; margin-left: auto; font-weight: 500; font-size: 1rem; }
+    .top nav a { text-decoration: none; }
+    .top nav a:hover { text-decoration: underline; }
+
+    /* hero: the long video and the shorts cut from it */
+    .hero { padding-block: 2.2rem 3.2rem; }
+    .hero h1 { max-width: 15ch; font-family: var(--display); font-weight: 800; font-size: clamp(2.5rem, 7vw, 4.6rem); line-height: .98; letter-spacing: -.025em; }
+    .hero .lede { max-width: 38rem; margin-top: 1.1rem; font-size: 1.1875rem; color: var(--ink-2); }
+    .actions { display: flex; flex-wrap: wrap; align-items: center; gap: .7rem; margin-top: 1.5rem; }
+    .btn { display: inline-flex; align-items: center; padding: .72rem 1.25rem; font-weight: 600; line-height: 1.2; color: #fff; background: var(--rani); border: 1.5px solid var(--rani); border-radius: .7rem; text-decoration: none; }
+    .btn:hover { background: var(--rani-deep); border-color: var(--rani-deep); }
+    .btn.quiet { color: var(--ink); background: transparent; border-color: var(--ink); }
+    .btn.quiet:hover { color: #fff; background: var(--ink); }
+    .pill { display: inline-flex; align-items: center; gap: .5rem; padding: .3rem .8rem; font-size: .9375rem; font-weight: 600; background: var(--sun); border-radius: 2rem; }
+    .pill::before { content: ""; flex: none; width: .55rem; height: .55rem; border-radius: 50%; background: var(--ink); }
+
+    .cut { margin-top: 2.8rem; }
+    .reel { position: relative; height: 3.4rem; overflow: hidden; background: var(--ink); border-radius: .8rem; }
+    .reel span { position: absolute; top: .55rem; bottom: .55rem; min-width: 1.6rem; display: grid; place-items: center; font-family: var(--display); font-weight: 800; font-size: 1rem; color: var(--ink); background: var(--sun); border-radius: .4rem; }
+    .reel-ends { display: flex; justify-content: space-between; margin-top: .35rem; font-size: .9375rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+    .shorts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 1rem; margin-top: 1.6rem; }
+    .short { position: relative; aspect-ratio: 9 / 16; overflow: hidden; background: var(--ink); border-radius: .9rem; }
+    .short .picture { position: absolute; left: 0; right: 0; top: 31%; height: 32%; }
+    .short .title { position: absolute; left: 8%; right: 8%; top: 7%; padding: .3em .5em; font-weight: 600; font-size: clamp(.5rem, 1.05vw, .8125rem); line-height: 1.25; color: #fff; background: rgba(0, 0, 0, .55); border-radius: .35rem; text-align: center; }
+    .short .words { position: absolute; left: 6%; right: 6%; top: 70%; font-family: var(--display); font-weight: 800; font-size: clamp(.7rem, 1.7vw, 1.3rem); line-height: 1.15; color: #fff; text-align: center; }
+    .short .words b { color: var(--sun); font-weight: 800; }
+    .short .rank { position: absolute; left: .5rem; bottom: .5rem; display: grid; place-items: center; width: 1.7rem; height: 1.7rem; font-family: var(--display); font-weight: 800; font-size: .9375rem; color: var(--ink); background: var(--sun); border-radius: .4rem; }
+    .p1 { background: #D2185C; } .p2 { background: #0B8A7A; } .p3 { background: #5B4FCF; } .p4 { background: #E0703A; } .p5 { background: #2F7FD1; }
+    .cut-note { margin-top: .9rem; font-size: .9375rem; color: var(--ink-2); }
+    @media (max-width: 40rem) {
+      .shorts { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; }
+      .short .title { font-size: .5625rem; } .short .words { top: 65%; font-size: .8125rem; }
+      .short .rank { left: .35rem; bottom: .35rem; width: 1.25rem; height: 1.25rem; font-size: .75rem; border-radius: .3rem; }
+    }
+
+    section { padding: 3rem 0; border-top: 1.5px solid var(--line); }
+    section > .wrap > h2 { max-width: 24ch; font-family: var(--display); font-weight: 800; font-size: clamp(1.7rem, 3.6vw, 2.4rem); line-height: 1.08; letter-spacing: -.015em; }
+    section > .wrap > h2 + p { max-width: 42rem; margin-top: .7rem; color: var(--ink-2); }
+
+    .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem; margin-top: 1.8rem; padding: 0; list-style: none; counter-reset: step; }
+    .steps li { counter-increment: step; }
+    .steps li::before { content: counter(step); display: grid; place-items: center; width: 2.3rem; height: 2.3rem; margin-bottom: .8rem; font-family: var(--display); font-weight: 800; font-size: 1.125rem; background: var(--sun); border-radius: .55rem; }
+    .steps h3 { font-family: var(--display); font-weight: 800; font-size: 1.3125rem; line-height: 1.2; }
+    .steps p { margin-top: .4rem; color: var(--ink-2); }
+    @media (max-width: 52rem) { .steps { grid-template-columns: minmax(0, 1fr); } }
+
+    .screens { display: grid; gap: 2rem; margin-top: 2rem; }
+    .screens img { width: 100%; background: var(--card); border: 1.5px solid var(--line); border-radius: 1rem; }
+    .screens figcaption { max-width: 44rem; margin-top: .6rem; font-size: 1rem; color: var(--ink-2); }
+
+    .limits { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.6rem; margin-top: 1.6rem; }
+    .limits h3 { font-size: 1.125rem; font-weight: 600; }
+    .limits p { margin-top: .35rem; color: var(--ink-2); }
+    @media (max-width: 52rem) { .limits { grid-template-columns: minmax(0, 1fr); } }
+
+    .start { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 2.5rem; margin-top: 1.6rem; align-items: start; }
+    .start ol { padding-left: 1.3rem; }
+    .start li + li { margin-top: .7rem; }
+    .start li::marker { font-weight: 600; }
+    .need { padding: 1.15rem 1.25rem; background: var(--card); border: 1.5px solid var(--line); border-radius: 1rem; }
+    .need h3 { font-size: 1.0625rem; font-weight: 600; }
+    .need ul { margin-top: .5rem; padding-left: 1.1rem; color: var(--ink-2); }
+    .need li + li { margin-top: .3rem; }
+    @media (max-width: 52rem) { .start { grid-template-columns: minmax(0, 1fr); gap: 1.5rem; } }
+
+    .built { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem 2.5rem; max-width: 52rem; margin-top: 1.4rem; padding: 0; list-style: none; }
+    .built li { padding: .55rem 0; border-bottom: 1.5px solid var(--line); }
+    .links { display: flex; flex-wrap: wrap; gap: .5rem 1.4rem; margin-top: 1.4rem; font-weight: 600; }
+    @media (max-width: 40rem) { .built { grid-template-columns: minmax(0, 1fr); } }
+
+    footer { padding: 2rem 0 3rem; border-top: 1.5px solid var(--line); color: var(--ink-2); font-size: 1rem; }
+    footer .wrap { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; justify-content: space-between; }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to the content</a>
+
+  <header class="wrap top">
+    <span>Dost Clip Studio</span>
+    <nav aria-label="Page">
+      <a href="#how">How it works</a>
+      <a href="#start">Start it</a>
+      <a href="https://github.com/Ritesh2610/dost-clip-studio">GitHub</a>
+    </nav>
+  </header>
+
+  <main id="main">
+    <div class="wrap hero">
+      <h1>Turn a long video into shorts worth watching</h1>
+      <p class="lede">Dost Clip Studio is a free app for your own computer. Paste a YouTube link or choose a video file, review the moments it suggests, and download vertical shorts with captions.</p>
+      <div class="actions">
+        <a class="btn" href="https://github.com/Ritesh2610/dost-clip-studio/archive/refs/heads/main.zip">Download the ZIP</a>
+        <a class="btn quiet" href="https://github.com/Ritesh2610/dost-clip-studio">See the code on GitHub</a>
+        <span class="pill">Runs on your computer. Nothing is uploaded.</span>
+      </div>
+
+      <div class="cut" role="img" aria-label="A long video shown as a bar with five marked moments, and below it the five vertical shorts cut from those moments, each with a title and captions.">
+        <div class="reel" aria-hidden="true">
+          <span style="left: 6%; width: 3.2%">5</span>
+          <span style="left: 30%; width: 3.6%">1</span>
+          <span style="left: 44%; width: 3%">4</span>
+          <span style="left: 77.5%; width: 3.3%">2</span>
+          <span style="left: 91.5%; width: 3%">3</span>
+        </div>
+        <div class="reel-ends" aria-hidden="true"><span>0:00</span><span>1:23:45</span></div>
+        <div class="shorts" aria-hidden="true">
+          <div class="short"><div class="picture p1"></div><div class="title">The table nearly fell</div><div class="words">I <b>flipped</b> it</div><div class="rank">1</div></div>
+          <div class="short"><div class="picture p2"></div><div class="title">Best board I ever cut</div><div class="words">look at <b>that</b> grain</div><div class="rank">2</div></div>
+          <div class="short"><div class="picture p3"></div><div class="title">Why no screws</div><div class="words">it holds <b>without</b> one</div><div class="rank">3</div></div>
+          <div class="short"><div class="picture p4"></div><div class="title">Found in a skip</div><div class="words">solid <b>oak</b> for free</div><div class="rank">4</div></div>
+          <div class="short"><div class="picture p5"></div><div class="title">First cut</div><div class="words">here <b>we</b> go</div><div class="rank">5</div></div>
+        </div>
+      </div>
+      <p class="cut-note">One stream of an hour and a half, five moments, five shorts. The numbers are the order of strength, not the order in the video.</p>
+    </div>
+
+    <section id="how">
+      <div class="wrap">
+        <h2>How it works</h2>
+        <ol class="steps">
+          <li>
+            <h3>Paste a link or choose a file</h3>
+            <p>A YouTube video, a finished stream, or a video file from your computer. You confirm that the video is yours or that you have permission to clip it.</p>
+          </li>
+          <li>
+            <h3>Review the moments</h3>
+            <p>The app reads YouTube's replay data, how loud the audio gets and the captions. It lists the strongest moments with a score and the reasons, and you change the start, the end and the title.</p>
+          </li>
+          <li>
+            <h3>Download the shorts</h3>
+            <p>Each clip becomes a 1080x1920 video with captions, the spoken word highlighted, and suggested post text with a credit line for the source channel.</p>
+          </li>
+        </ol>
+
+        <div class="screens">
+          <figure>
+            <img src="shot-review.webp" width="1600" height="1059" loading="lazy" alt="The review screen: the video's title, the three signals the app looked at, a bar showing where five moments sit in the video, and for each moment a score, the reasons, the transcript and fields for start, end and title.">
+            <figcaption>The review screen. Every moment shows why it was picked, and nothing is rendered until you say so.</figcaption>
+          </figure>
+          <figure>
+            <img src="shot-results.webp" width="1600" height="1059" loading="lazy" alt="The results screen: four finished vertical shorts side by side, each with a player, a file name, suggested post text, a Download button and a Copy caption button.">
+            <figcaption>The results screen, shown here with a test pattern in place of a real video.</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>What it will not do</h2>
+        <div class="limits">
+          <div>
+            <h3>Post for you</h3>
+            <p>There is no posting, scheduling or bulk clipping. You download the clips and post them yourself.</p>
+          </div>
+          <div>
+            <h3>Make a clip popular</h3>
+            <p>It finds moments that are more likely to hold attention. What happens after you post is not something a tool can decide.</p>
+          </div>
+          <div>
+            <h3>Decide what you may use</h3>
+            <p>Clip your own videos, or videos you have permission to clip. Platforms hold back accounts that repost other people's work, with or without a credit line.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="start">
+      <div class="wrap">
+        <h2>Start it on your computer</h2>
+        <div class="start">
+          <ol>
+            <li><a href="https://github.com/Ritesh2610/dost-clip-studio/archive/refs/heads/main.zip">Download the ZIP</a> and unpack it, or clone the repository.</li>
+            <li>On Windows, double-click <code>start.bat</code>. On macOS or Linux, run <code>./start.sh</code> in the project folder.</li>
+            <li>The app opens in your browser at <code>http://127.0.0.1:5180</code>. Keep the terminal window open while you use it.</li>
+          </ol>
+          <div class="need">
+            <h3>What you need</h3>
+            <ul>
+              <li>Windows 10 or 11, macOS, or Linux</li>
+              <li>Python 3.11 or newer</li>
+              <li>An internet connection for the first start and for YouTube links</li>
+            </ul>
+          </div>
+        </div>
+        <p style="max-width: 42rem; margin-top: 1.4rem; color: var(--ink-2)">The first start installs yt-dlp, ffmpeg and Deno as Python packages. You do not install them yourself.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="wrap">
+        <h2>How it is built</h2>
+        <ul class="built">
+          <li>A local web server written with the Python standard library</li>
+          <li>yt-dlp for reading and downloading, ffmpeg for cutting and rendering</li>
+          <li>Tests run on Ubuntu and Windows with Python 3.11, 3.13 and 3.14</li>
+          <li>The server listens only on your computer and checks every request's origin</li>
+        </ul>
+        <p class="links">
+          <a href="https://github.com/Ritesh2610/dost-clip-studio/blob/main/docs/ARCHITECTURE.md">Architecture</a>
+          <a href="https://github.com/Ritesh2610/dost-clip-studio/blob/main/docs/RESPONSIBLE_USE.md">Responsible use</a>
+          <a href="https://github.com/Ritesh2610/dost-clip-studio/blob/main/CONTRIBUTING.md">Contributing</a>
+          <a href="https://github.com/Ritesh2610/dost-clip-studio/blob/main/SECURITY.md">Security</a>
+        </p>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="wrap">
+      <span>Made by Ritesh Pandey. MIT licence.</span>
+      <span><a href="https://ritesh2610.github.io/">More tools and projects</a></span>
+    </div>
+  </footer>
+</body>
+</html>

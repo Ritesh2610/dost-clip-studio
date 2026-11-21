@@ -265,7 +265,7 @@ test('source: a missing tool gets a clear warning and a next step', async () => 
   // On Windows, the main target, the file to run is start.bat.
   session = await open({ flags: { tools: 'no-deno' }, context: { userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36' } });
   warning = await text(session.page, '#tools .cs-warn');
-  assert.equal(warning, 'Deno is missing, so YouTube links will probably fail. Run start.bat (Windows) or start.sh (macOS, Linux) again so it can be installed.');
+  assert.equal(warning, 'Deno is missing, so YouTube links will probably fail. Run start.bat again so it can be installed.');
   await session.close();
 
   session = await open({ flags: { tools: 'none' } });

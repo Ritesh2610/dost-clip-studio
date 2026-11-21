@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Fixed
+
+- Cutting a part out of a YouTube video no longer fails with "ffmpeg is not installed" on a computer that has no ffmpeg of its own. The ffmpeg that is installed with the app is now used for this step too.
+- A request the server cannot read is always answered with a status line and the safety headers, on every supported Python version. Requests in the header-less HTTP/0.9 form are refused.
+- The post text saved next to each clip has the same line endings on Windows as on other systems.
+- A video file whose name starts with several dots is accepted on Python 3.14 as it is on older versions.
+
 ## [1.0.0] - 2026-11-21
 
 First public release.
@@ -29,7 +36,7 @@ First public release.
 - Uploads, work files and finished clips are removed after 72 hours by default.
 - A log file, `clip-log.txt`, for troubleshooting.
 - Start scripts for Windows (`start.bat`) and for macOS and Linux (`start.sh`).
-- Tests that run without the network, and continuous integration on Ubuntu and Windows with Python 3.11 and 3.13.
+- Tests that run without the network, and continuous integration on Ubuntu and Windows with Python 3.11, 3.13 and 3.14.
 
 [Unreleased]: https://github.com/Ritesh2610/dost-clip-studio/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/Ritesh2610/dost-clip-studio/releases/tag/v1.0.0

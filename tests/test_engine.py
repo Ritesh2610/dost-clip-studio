@@ -1983,16 +1983,21 @@ def test_render_with_hostile_caption_text(media: Any, tmp_path: Path) -> None:
     words = [{"t": 0.05 + 0.05 * i, "d": 0.05, "w": text} for i, text in enumerate(HOSTILE_TEXTS)]
     hostile_ass = engine.build_ass(words, 0, 1.5, "{\\fs200\\an5}" + HOSTILE_TEXTS[1])
     (tmp_path / "hostile.ass").write_text(hostile_ass, encoding="utf-8")
-    tame_ass = engine.build_ass([{"t": 0.05, "d": 1.4, "w": "(/fs200)BIG"}], 0, 1.5, "T")
+    # the reference shares the header, so the font is the same, and spells the word with harmless brackets by hand
+    header = hostile_ass.split("[Events]")[0]
+    events = "Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text"
+    harmless = "Dialogue: 0,0:00:00.05,0:00:01.50,Words,,0,0,0,,{\\c&H2EC4FF&}(/fs200)BIG{\\c&HFFFFFF&}"
+    tame_ass = f"{header}[Events]\n{events}\n{harmless}\n"
     (tmp_path / "tame.ass").write_text(tame_ass, encoding="utf-8")
     hostile, tame = tmp_path / "hostile.mp4", tmp_path / "tame.mp4"
     engine.render_short(media.source("four_three"), 0, 1.5, hostile, ass_file="hostile.ass")
     engine.render_short(media.source("four_three"), 0, 1.5, tame, ass_file="tame.ass")
     assert_is_short(media, hostile, audio=True, seconds=1.5)
-    # the first word on screen is "{\fs200}BIG": it must look like the same text typed with harmless brackets
-    lit = media.count_colour(media.frame(hostile, 0.07), (0xFF, 0xC4, 0x2E))
-    expected = media.count_colour(media.frame(tame, 0.07), (0xFF, 0xC4, 0x2E))
-    assert expected > 300 and 0.6 * expected < lit < 1.6 * expected, f"{lit} highlighted pixels against {expected}"
+    # the first word on screen is "{\fs200}BIG": it must look like the same text typed with harmless brackets.
+    # It is shown from 0.05 s to 0.10 s, which at 30 frames a second is the single frame at 0.067 s.
+    lit = media.count_colour(media.frame(hostile, 0.06), (0xFF, 0xC4, 0x2E))
+    expected = media.count_colour(media.frame(tame, 0.06), (0xFF, 0xC4, 0x2E))
+    assert expected > 300 and 0.85 * expected < lit < 1.15 * expected, f"{lit} highlighted pixels against {expected}"
     # a drawing command that took effect would paint the whole frame white
     for at in (0.2, 0.5, 1.0, 1.4):
         frame = media.frame(hostile, at, size=(108, 192))
@@ -2017,6 +2022,32 @@ def test_fetch_section_is_cut_at_the_asked_times(ytdlp: Any, http_server: Any, m
     assert levels[0] < -40 and all(v > -25 for v in levels[2:7]) and levels[8] < -40 and levels[9] < -40, levels
     info = media.info(path)
     assert "1280x720" in info and "Audio:" in info
+
+
+def test_fetch_section_needs_no_ffmpeg_on_path(
+    ytdlp: Any, http_server: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A computer with no ffmpeg of its own (most Windows PCs) must still be able to cut a part out of a video."""
+    empty = tmp_path / "empty-path"
+    empty.mkdir()
+    monkeypatch.setenv("PATH", str(empty))
+    out = tmp_path / "out"
+    out.mkdir()
+    path = engine.fetch_section(http_server.url("sample.mp4"), 10, 13, out / "seg")
+    assert path == out / "seg.mp4" and folder_names(out) == ["seg.mp4"]
+    assert engine.probe_duration(path) == pytest.approx(3.0, abs=0.15)
+
+
+def test_open_ydl_puts_back_the_ffmpeg_setting_it_changed() -> None:
+    from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
+
+    before = FFmpegPostProcessor._ffmpeg_location.get()
+    with engine.open_ydl(engine.ydl_options(skip_download=True)):
+        assert FFmpegPostProcessor._ffmpeg_location.get() == engine.ffmpeg_exe()
+    assert FFmpegPostProcessor._ffmpeg_location.get() == before
+    with pytest.raises(RuntimeError, match="boom"), engine.open_ydl(engine.ydl_options(skip_download=True)):
+        raise RuntimeError("boom")
+    assert FFmpegPostProcessor._ffmpeg_location.get() == before
 
 
 def test_fetch_section_from_the_very_start(ytdlp: Any, http_server: Any, media: Any, tmp_path: Path) -> None:

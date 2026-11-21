@@ -4,6 +4,8 @@
 
 Dost Clip Studio finds the strongest moments in a long YouTube video, a finished stream or a video file, and turns the ones you choose into vertical 1080x1920 shorts with captions. It runs on your own computer, for videos you made or have permission to clip.
 
+Project page: <https://ritesh2610.github.io/dost-clip-studio/>
+
 ## What it does and does not do
 
 It does:
