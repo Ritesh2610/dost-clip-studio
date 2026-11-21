@@ -21,7 +21,7 @@ import statistics
 import subprocess
 import sys
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -143,6 +143,24 @@ def ydl_options(**extra: Any) -> dict[str, Any]:
     return options
 
 
+@contextlib.contextmanager
+def open_ydl(options: dict[str, Any]) -> Iterator[Any]:
+    """A yt-dlp session that finds the bundled ffmpeg everywhere, also when no ffmpeg is on PATH.
+
+    The `ffmpeg_location` setting reaches yt-dlp's post-processors, but its downloaders decide whether
+    ffmpeg exists through a context variable that only the yt-dlp command line sets. Without it, cutting
+    one part out of a video fails with "ffmpeg is not installed" on a computer that has no ffmpeg of its own.
+    """
+    import yt_dlp
+    from yt_dlp.postprocessor.ffmpeg import FFmpegPostProcessor
+
+    with contextlib.ExitStack() as stack:
+        variable = getattr(FFmpegPostProcessor, "_ffmpeg_location", None)
+        if variable is not None:
+            stack.callback(variable.reset, variable.set(options.get("ffmpeg_location")))
+        yield stack.enter_context(yt_dlp.YoutubeDL(options))
+
+
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 # a run of two or more path parts, optionally after a Windows drive letter: /home/me/x.mp4, C:\Users\me\x.mp4
 _LOCAL_PATH = re.compile(r"(?:\bfile:|(?<![\w/\\~.:-]))(?:[A-Za-z]:)?(?:[\\/]+[^\\/\s:*?\"'<>|]+){2,}")
@@ -222,9 +240,7 @@ def _clean_heatmap(heatmap: Any) -> list[dict[str, float]]:
 
 def inspect_url(url: str) -> dict[str, Any]:
     """Reads the video's details without downloading it."""
-    import yt_dlp
-
-    with yt_dlp.YoutubeDL(ydl_options(skip_download=True)) as ydl:
+    with open_ydl(ydl_options(skip_download=True)) as ydl:
         info = ydl.extract_info(url, download=False)
         if not isinstance(info, dict):
             raise ValueError("That link did not lead to a video.")
@@ -459,16 +475,12 @@ def _downloaded_file(ydl: Any, info: Any, folder: Path, stem: str) -> Path:
 
 def download_audio(url: str, work: Path) -> Path:
     """Fetches the smallest audio track, which is enough to measure loudness."""
-    import yt_dlp
-
     work = Path(work)
     before = _listing(work)
     # "%" starts a field in yt-dlp's name template, so one that belongs to the folder name is doubled
     template = str(work / "audio").replace("%", "%%") + ".%(ext)s"
     try:
-        with yt_dlp.YoutubeDL(
-            ydl_options(format="worstaudio/bestaudio/worst", outtmpl=template, overwrites=True)
-        ) as ydl:
+        with open_ydl(ydl_options(format="worstaudio/bestaudio/worst", outtmpl=template, overwrites=True)) as ydl:
             info = ydl.extract_info(url, download=True)
             return _downloaded_file(ydl, info, work, "audio")
     except BaseException:
@@ -934,7 +946,6 @@ def build_ass(words: list[Word], start: float, end: float, title: str = "") -> s
 
 def fetch_section(url: str, start: float, end: float, target: Path) -> Path:
     """Downloads just one part of the video, cut exactly at the requested times."""
-    import yt_dlp
     from yt_dlp.utils import download_range_func
 
     start, end = max(0.0, _number(start)), _number(end)
@@ -953,7 +964,7 @@ def fetch_section(url: str, start: float, end: float, target: Path) -> Path:
         force_keyframes_at_cuts=True,
     )
     try:
-        with yt_dlp.YoutubeDL(options) as ydl:
+        with open_ydl(options) as ydl:
             info = ydl.extract_info(url, download=True)
             path = _downloaded_file(ydl, info, folder, stem)
         if probe_duration(path) <= 0:  # asking for a part past the end "works" but gives a file with nothing in it

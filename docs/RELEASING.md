@@ -72,8 +72,10 @@ Settings, then Branches (or Rules, then Rulesets), for the `main` branch:
   - `lint`
   - `test (ubuntu-latest, Python 3.11)`
   - `test (ubuntu-latest, Python 3.13)`
+  - `test (ubuntu-latest, Python 3.14)`
   - `test (windows-latest, Python 3.11)`
   - `test (windows-latest, Python 3.13)`
+  - `test (windows-latest, Python 3.14)`
 - Do not select `audit (not required)`. That job is allowed to fail so that a new advisory in a dependency does not block unrelated work.
 - Require branches to be up to date before merging.
 - Block force pushes, and do not allow the branch to be deleted.
