@@ -1,0 +1,126 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dost-clip-studio"
+version = "1.0.0"
+description = "A local app that finds the strongest moments in a YouTube video or a video file and renders vertical shorts with captions."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Ritesh Pandey" }]
+keywords = ["video", "shorts", "clips", "captions", "ffmpeg", "yt-dlp"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Web Environment",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Multimedia :: Video",
+]
+# Keep in step with requirements.txt.
+dependencies = [
+    "yt-dlp[default]>=2026.10.26",
+    "deno>=2.3",
+    "imageio-ffmpeg>=0.6",
+]
+
+[project.optional-dependencies]
+# Keep in step with requirements-dev.txt.
+dev = [
+    "pytest>=8",
+    "ruff>=0.16.9,<0.17",
+    "mypy>=2.3.1,<2.4",
+    "pip-audit>=2.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/Ritesh2610/dost-clip-studio"
+Issues = "https://github.com/Ritesh2610/dost-clip-studio/issues"
+Changelog = "https://github.com/Ritesh2610/dost-clip-studio/blob/main/CHANGELOG.md"
+
+[project.scripts]
+clipstudio = "clipstudio.__main__:main"
+
+[tool.setuptools]
+packages = ["clipstudio"]
+
+# ---------------------------------------------------------------- ruff
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+extend-exclude = [
+    "data",
+    # Working notes that are not part of the published project.
+    "docs/_engine_checks_reference.py",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",  # pycodestyle errors
+    "F",  # pyflakes
+    "W",  # pycodestyle warnings
+    "I",  # import order
+    "B",  # flake8-bugbear: likely bugs
+    "UP", # pyupgrade: syntax that is out of date for Python 3.11
+    "S",  # flake8-bandit: security checks
+]
+ignore = [
+    # Line length belongs to `ruff format`. It wraps code at 120 columns but leaves long
+    # strings and comments alone, so E501 would report lines the formatter will not change.
+    "E501",
+    # Indentation with tabs is also the formatter's job.
+    "W191",
+    # S603 fires on every subprocess call, safe or not. The rules that matter here stay on:
+    # S602, S604 and S605 (no shell=True, no os.system) and S607 (no partial program paths).
+    "S603",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101", # assert is how pytest works
+    "S104", # tests check that binding to all interfaces is refused or handled
+    "S105", # test fixtures that look like passwords
+    "S106",
+    "S108", # temporary paths in tests
+    "S310", # tests open http://127.0.0.1 URLs
+    "S311", # random is fine for test data
+    "S607", # tests may run helper programs by name
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["clipstudio"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+# ---------------------------------------------------------------- mypy
+
+[tool.mypy]
+python_version = "3.11"
+files = ["clipstudio"]
+ignore_missing_imports = true
+check_untyped_defs = true
+warn_redundant_casts = true
+no_implicit_optional = true
+
+# -------------------------------------------------------------- pytest
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = [
+    "slow: tests that take more than a few seconds, usually because they run ffmpeg",
+]

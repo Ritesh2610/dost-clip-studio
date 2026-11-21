@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# What the app writes while it runs: uploads, work files, rendered clips and its log
+data/
+clip-log.txt
+
+# Media. Test clips are generated with ffmpeg while the tests run and are never committed.
+*.mp4
+*.mov
+*.mkv
+*.webm
+*.m4v
+*.avi
+*.m4a
+*.mp3
+*.wav
+*.ass
+*.part
+*.ytdl
+
+# UI test: Playwright installed with `npm install --no-save`, and its output
+node_modules/
+package-lock.json
+test-results/
+playwright-report/
+
+# Working notes that are not part of the published project
+docs/BRIEF.md
+docs/_engine_checks_reference.py
+
+# Local settings
+.env
+.env.*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Operating systems
+.DS_Store
+Thumbs.db
+desktop.ini

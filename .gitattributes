@@ -1,0 +1,21 @@
+# Let Git detect text files and store them with LF line endings.
+* text=auto
+
+# Scripts that only work with one kind of line ending.
+*.bat text eol=crlf
+*.sh  text eol=lf
+
+# Source and docs: LF everywhere, so checks give the same result on Windows and Linux.
+*.py   text eol=lf
+*.md   text eol=lf
+*.yml  text eol=lf
+*.toml text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.svg  text eol=lf
+
+# Never convert or diff these.
+*.mp4 binary
+*.png binary
