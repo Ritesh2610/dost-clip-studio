@@ -883,7 +883,7 @@ class App:
             overlay_title = title if options["showTitle"] else ""
             spoken = [w for w in words if start <= _word_time(w) < end]
             if tools["captions_filter"] and (spoken or overlay_title):
-                ass_path.write_text(engine.build_ass(spoken, start, end, overlay_title), encoding="utf-8")
+                ass_path.write_text(engine.build_ass(spoken, start, end, overlay_title), encoding="utf-8", newline="\n")
                 ass_name = ass_path.name
 
             engine.render_short(
@@ -905,7 +905,8 @@ class App:
                 seconds = 0.0
             if not math.isfinite(seconds) or seconds <= 0:
                 seconds = end - start
-            (out_dir / f"{stem}.txt").write_text(caption + "\n", encoding="utf-8")
+            # the same bytes on every system: Windows would otherwise turn each line end into two characters
+            (out_dir / f"{stem}.txt").write_text(caption + "\n", encoding="utf-8", newline="\n")
             result.update(ok=True, url=f"/output/{out_dir.name}/{out.name}", seconds=round(seconds, 2), bytes=size)
             self.log(f"[render] clip {index} of {total}: done, {format_bytes(size)}")
         except JobCancelled:
@@ -960,6 +961,14 @@ class Handler(BaseHTTPRequestHandler):
         if self.app.verbose:
             self.app.log(f"[request] {self.address_string()} {format % args}")
 
+    def parse_request(self) -> bool:
+        """Reads the request line and headers. Refuses HTTP/0.9, whose answers carry none of the safety headers."""
+        readable = super().parse_request()
+        if readable and self.request_version == "HTTP/0.9":
+            self.send_error(400)
+            return False
+        return readable
+
     # -- responses
 
     def _send(self, status: int, body: bytes, content_type: str, extra: dict[str, str] | None = None) -> None:
@@ -997,6 +1006,10 @@ class Handler(BaseHTTPRequestHandler):
         }
         label, text = texts.get(code, ("bad_request", "The request could not be handled."))
         self.close_connection = True
+        if self.request_version == "HTTP/0.9":
+            # Some Python versions treat an unreadable first line as HTTP/0.9, which is answered with neither
+            # a status line nor headers. The error must always go out as a complete answer.
+            self.request_version = ""
         try:
             self._error(AppError(code, label, text))
         except OSError:
