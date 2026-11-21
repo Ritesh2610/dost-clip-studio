@@ -11,6 +11,7 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Cutting a part out of a YouTube video no longer fails with "ffmpeg is not installed" on a computer that has no ffmpeg of its own. The ffmpeg that is installed with the app is now used for this step too.
 - A request the server cannot read is always answered with a status line and the safety headers, on every supported Python version. Requests in the header-less HTTP/0.9 form are refused.
 - The post text saved next to each clip has the same line endings on Windows as on other systems.
+- A video file whose name starts with several dots is accepted on Python 3.14 as it is on older versions.
 
 ## [1.0.0] - 2026-11-21
 
