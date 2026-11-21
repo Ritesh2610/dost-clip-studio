@@ -1,0 +1,224 @@
+/* Dost Clip Studio: additions on top of kit.css.
+   The marigold band at the top is the one loud element. Panels below stay calm. */
+
+:root {
+  --paper: #FFFBEF;
+  --tint: #EEEBFA;
+  --teal-deep: #076A5E; /* teal dark enough for small text on white */
+}
+
+body { overflow-wrap: break-word; }
+h2, h3 { overflow-wrap: anywhere; }
+
+.cs-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.cs-skip { position: absolute; left: 1rem; top: -4rem; z-index: 60; padding: .6rem 1rem; color: #fff; background: var(--ink); border-radius: .5rem; }
+.cs-skip:focus { top: 1rem; }
+
+/* ------------------------------------------------------------------ band */
+.cs-band { background: var(--sun); border-bottom: 3px solid var(--ink); }
+.cs-band .k-all { font-variant-numeric: tabular-nums; }
+.cs-hero { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2.5rem; align-items: center; max-width: 72rem; margin: 0 auto; padding: .4rem 1.25rem 1.75rem; }
+.cs-hero h1 { max-width: 20ch; font-family: var(--display); font-weight: 800; font-size: clamp(2rem, 5.2vw, 3.5rem); line-height: 1; letter-spacing: -.03em; }
+.cs-hero-text > p { max-width: 52ch; margin-top: .8rem; font-size: 1.0625rem; font-weight: 500; line-height: 1.45; }
+.cs-hero .k-private { background: var(--ink); color: #fff !important; }
+.cs-hero .k-private::before { background: var(--sun); }
+
+/* A wide video with one upright slice lifted out of it: what the app does. */
+.cs-art { position: relative; width: 16rem; height: 10rem; margin-right: 1rem; }
+.cs-art-wide { position: absolute; left: 0; top: 1.2rem; width: 13.5rem; height: 7.6rem; display: flex; align-items: flex-end; gap: .35rem; padding: .7rem; background: var(--paper); border: 3px solid var(--ink); border-radius: .9rem; }
+.cs-art-wide span { flex: 1; height: 28%; background: var(--line); border-radius: .25rem; }
+.cs-art-wide span:nth-child(2) { height: 62%; background: var(--ink-2); }
+.cs-art-wide span:nth-child(3) { height: 40%; }
+.cs-art-tall { position: absolute; right: 0; top: 0; width: 5.63rem; height: 10rem; display: flex; flex-direction: column; justify-content: flex-end; gap: .4rem; padding: .7rem; background: var(--rani); border: 3px solid var(--ink); border-radius: 1rem; box-shadow: 7px 7px 0 var(--ink); transform: rotate(3deg); }
+.cs-art-tall i { display: block; height: .5rem; background: #fff; border-radius: .25rem; }
+.cs-art-tall i:last-child { width: 62%; }
+@media (max-width: 52rem) { .cs-hero { grid-template-columns: minmax(0, 1fr); padding-bottom: 1.75rem; } .cs-art { display: none; } }
+
+.k-main { padding-top: 1.25rem; }
+
+/* ----------------------------------------------------------------- steps */
+.cs-steps { display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; margin: 0 0 1rem; padding: 0; list-style: none; counter-reset: step; font-size: .9375rem; font-weight: 600; color: var(--ink-2); }
+.cs-steps li { display: flex; align-items: center; gap: .45rem; counter-increment: step; }
+.cs-steps li::before { content: counter(step); display: grid; place-items: center; width: 1.6rem; height: 1.6rem; font-variant-numeric: tabular-nums; background: transparent; border: 1.5px solid var(--ink-2); border-radius: 50%; }
+.cs-steps li.done { color: var(--ink); }
+.cs-steps li.done::before { color: var(--ink); background: var(--sun); border-color: var(--ink); }
+.cs-steps li[aria-current="step"] { color: var(--ink); }
+.cs-steps li[aria-current="step"]::before { color: #fff; background: var(--ink); border-color: var(--ink); }
+
+/* ---------------------------------------------------------------- stages */
+.cs-stage > h2 { font-size: 1.5rem; margin-bottom: .9rem; }
+.cs-stage > h2:focus-visible { outline-offset: 4px; }
+.cs-stage.cs-in { animation: cs-in 280ms cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes cs-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+.cs-plain { min-width: 0; margin: 0; padding: 0; border: 0; }
+.cs-sub { font-family: var(--body); font-size: .875rem; font-weight: 600; margin-top: 1rem; }
+.cs-alert { min-height: 1.45em; margin: .6rem 0; }
+.cs-alert:empty { margin: .3rem 0; }
+.cs-alert .cs-hint, .cs-step .cs-hint { display: block; font-weight: 500; }
+
+.cs-choice { display: flex; align-items: flex-start; gap: .55rem; padding: .3rem 0; cursor: pointer; }
+.cs-choice input { flex: none; margin: .22rem 0 0; }
+.cs-choice:has(input:disabled) { cursor: not-allowed; color: var(--ink-2); }
+
+.cs-range-row { display: flex; align-items: center; gap: .8rem; }
+.cs-range-row input { flex: 1; min-width: 0; }
+.cs-out { flex: none; min-width: 6.2rem; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ---------------------------------------------------------------- source */
+.cs-source-grid { gap: 1.25rem 2.5rem; }
+.cs-or { display: flex; align-items: center; gap: .8rem; margin: .9rem 0; font-size: .9375rem; font-weight: 600; color: var(--ink-2); }
+.cs-or::before, .cs-or::after { content: ""; flex: 1; height: 1.5px; background: var(--line); }
+#file-drop { padding: 1.4rem 1rem; }
+#file-drop strong { font-size: 1.125rem; }
+.cs-file { margin-top: .7rem; padding: .7rem .8rem; background: var(--tint); border-radius: .7rem; }
+.cs-file-line { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem .8rem; }
+.cs-file-name { flex: 1 1 10rem; min-width: 0; font-weight: 600; overflow-wrap: anywhere; }
+.cs-file .k-btn.ghost { background: #fff; }
+.cs-upload { margin-top: .6rem; }
+#upload-status:empty { display: none; }
+#upload-status { margin-top: .4rem; }
+.cs-permission { margin-top: 1.1rem; padding: .75rem .85rem; font-weight: 600; background: var(--paper); border: 1.5px solid var(--ink); border-radius: .7rem; }
+.cs-go { padding: .8rem 1.4rem; font-size: 1.0625rem; font-variant-numeric: tabular-nums; }
+#render-go { min-width: 10.5rem; }
+.k-btn[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+.cs-tools { margin-top: 1.1rem; padding-top: .9rem; border-top: 1.5px solid var(--line); }
+.cs-tools p + p { margin-top: .35rem; }
+.cs-warn { font-size: .9375rem; font-weight: 600; color: var(--warn); overflow-wrap: anywhere; }
+
+/* -------------------------------------------------------------- progress */
+.cs-step { min-height: 1.5em; margin-bottom: .7rem; font-size: 1.0625rem; font-weight: 600; overflow-wrap: anywhere; }
+.cs-bar-row { display: flex; align-items: center; gap: .8rem; }
+.cs-bar-row progress { flex: 1; min-width: 0; }
+.cs-pct { flex: none; min-width: 3.2rem; text-align: right; font-weight: 600; font-variant-numeric: tabular-nums; }
+progress { display: block; width: 100%; height: .85rem; overflow: hidden; background: var(--tint); border: 1.5px solid var(--ink); border-radius: 1rem; appearance: none; -webkit-appearance: none; }
+progress::-webkit-progress-bar { background: var(--tint); }
+progress::-webkit-progress-value { background: var(--rani); transition: width 300ms ease; }
+progress::-moz-progress-bar { background: var(--rani); }
+.cs-progress.is-over .cs-bar-row button { visibility: hidden; }
+
+/* --------------------------------------------------------------- moments */
+.cs-video { display: flex; align-items: center; gap: 1rem; }
+.cs-thumb-slot { flex: none; width: 8rem; aspect-ratio: 16 / 9; overflow: hidden; background: var(--tint); border: 1.5px solid var(--line); border-radius: .6rem; }
+.cs-thumb-slot img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.cs-video-text { min-width: 0; }
+.cs-video h3 { font-family: var(--display); font-weight: 800; font-size: 1.375rem; line-height: 1.15; }
+.cs-video .k-meta { margin-top: .25rem; font-size: .9375rem; }
+
+.cs-signals { margin: .35rem 0 0; padding: 0; list-style: none; font-size: .9375rem; }
+.cs-signals li { display: flex; align-items: baseline; gap: .55rem; padding: .12rem 0; overflow-wrap: anywhere; }
+.cs-signals li::before { content: ""; flex: none; width: .6rem; height: .6rem; border: 2px solid var(--ink-2); border-radius: 50%; transform: translateY(-.03rem); }
+.cs-signals li.on::before { background: var(--teal); border-color: var(--teal); }
+.cs-signals li > span { min-width: 0; }
+.cs-note { margin-top: .8rem; padding: .7rem .85rem; font-weight: 500; background: #FFF6D6; border-left: 4px solid var(--sun); border-radius: .4rem; overflow-wrap: anywhere; }
+
+/* where the moments sit in the whole video */
+.cs-timeline-wrap { margin: 1.2rem 0 .4rem; }
+.cs-timeline { position: relative; height: 2.1rem; overflow: hidden; background: var(--ink); border-radius: .5rem; }
+.cs-timeline span { position: absolute; top: .3rem; bottom: .3rem; min-width: 1.15rem; display: grid; place-items: center; overflow: hidden; font-size: .75rem; font-weight: 600; line-height: 1; color: var(--ink); background: var(--sun); border-radius: .25rem; }
+.cs-timeline span.off { color: transparent; background: transparent; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, .55); }
+.cs-timeline-ends { display: flex; justify-content: space-between; margin-top: .2rem; font-size: .8125rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+.cs-moments-help { margin: .9rem 0 .6rem; }
+.cs-moments { margin: 0 0 .9rem; padding: 0; list-style: none; }
+.cs-moments:empty { margin: 0; }
+.cs-moment { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .9rem 2rem; padding: 1.1rem 0; border-top: 1.5px solid var(--line); }
+.cs-moment.off > :not(.cs-m-head) { opacity: .8; }
+.cs-m-head { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.2rem; }
+.cs-m-head h3 { font-family: var(--display); font-weight: 800; font-size: 1.1875rem; }
+.cs-m-head .cs-choice { padding: 0; font-weight: 600; }
+.cs-score { display: flex; flex-wrap: wrap; align-items: center; gap: .3rem .6rem; margin-left: auto; font-size: .875rem; }
+.cs-score label { font-weight: 600; }
+.cs-score b { min-width: 1.9rem; font-size: 1rem; font-variant-numeric: tabular-nums; text-align: right; }
+.cs-score .k-meta { flex-basis: auto; }
+meter { width: 6.5rem; height: .8rem; }
+meter::-webkit-meter-bar { height: .8rem; background: var(--tint); border: 1.5px solid var(--ink); border-radius: 1rem; }
+meter::-webkit-meter-optimum-value, meter::-webkit-meter-suboptimum-value, meter::-webkit-meter-even-less-good-value { background: var(--ink); border-radius: 1rem 0 0 1rem; }
+meter::-moz-meter-bar { background: var(--ink); }
+
+.cs-m-col { min-width: 0; }
+.cs-times { display: flex; gap: .8rem; }
+.cs-times label { flex: 1 1 0; min-width: 0; max-width: 9rem; }
+.cs-times label > span, .cs-m-title > span { display: block; font-size: .875rem; font-weight: 600; margin-bottom: .25rem; }
+.cs-times input { font-variant-numeric: tabular-nums; }
+.k-input[aria-invalid="true"] { border-color: var(--warn); box-shadow: inset 0 0 0 1px var(--warn); }
+/* Room is kept free for the length and one message, so nothing below moves when a message appears. */
+.cs-m-state { min-height: 2.8em; margin-top: .4rem; font-size: .9375rem; line-height: 1.4; }
+.cs-m-state .cs-len { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.cs-m-state .k-error { display: block; font-size: .9375rem; }
+.cs-m-title { display: block; }
+.cs-count { margin-top: .25rem; font-size: .8125rem; color: var(--ink-2); font-variant-numeric: tabular-nums; text-align: right; }
+
+.cs-reasons { display: flex; flex-wrap: wrap; gap: .35rem; margin: 0; padding: 0; list-style: none; }
+.cs-reasons li { max-width: 100%; padding: .2rem .65rem; font-size: .875rem; font-weight: 600; background: var(--tint); border-radius: 2rem; overflow-wrap: anywhere; }
+.cs-text { margin-top: .7rem; color: var(--ink-2); overflow-wrap: anywhere; }
+.cs-text.clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.cs-linkbtn { margin-top: .2rem; padding: .15rem 0; font-size: .9375rem; font-weight: 600; color: var(--ink); background: none; border: 0; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.cs-m-links { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.2rem; margin-top: .7rem; }
+.cs-m-links a { font-size: .9375rem; font-weight: 600; }
+.cs-m-links:empty { display: none; }
+
+.cs-options { min-width: 0; margin: 1.4rem 0 0; padding: 1rem 1.1rem 1.1rem; border: 1.5px solid var(--line); border-radius: .9rem; }
+.cs-options > legend { padding: 0 .4rem; font-family: var(--display); font-weight: 800; font-size: 1.125rem; }
+.cs-opt-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1.1rem 2rem; }
+.cs-opt-slot { min-height: 6.6rem; }
+.cs-layout { align-items: center; }
+.cs-layout input { margin-top: 0; }
+.cs-mini { flex: none; position: relative; width: 1.55rem; height: 2.75rem; overflow: hidden; background: var(--line); border: 1.5px solid var(--ink); border-radius: .3rem; }
+.cs-mini i { position: absolute; left: 0; right: 0; top: 32%; height: 36%; background: var(--ink); }
+.cs-mini.fill i { top: 0; height: 100%; left: -40%; right: -40%; }
+.cs-seg { display: flex; flex-wrap: wrap; gap: .2rem 1.2rem; }
+/* The message sits under the button, so the button never moves when a message appears. */
+.cs-make { display: flex; flex-direction: column; align-items: flex-end; margin-top: 1.1rem; }
+.cs-make .cs-alert { margin: .5rem 0 0; text-align: right; }
+fieldset:disabled .k-btn, fieldset:disabled .cs-choice { cursor: not-allowed; }
+
+/* --------------------------------------------------------------- results */
+#results { margin-top: 1.2rem; }
+.cs-clips { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr)); gap: 1.5rem 1.25rem; margin: 0; padding: 0; list-style: none; }
+.cs-clip { display: flex; flex-direction: column; gap: .55rem; min-width: 0; }
+.cs-clip h3 { font-family: var(--display); font-weight: 800; font-size: 1.125rem; }
+.cs-player { display: grid; place-items: center; background: var(--ink); border-radius: .9rem; overflow: hidden; }
+.cs-player video { display: block; width: auto; max-width: 100%; height: auto; max-height: 70vh; aspect-ratio: 9 / 16; background: #000; }
+.cs-failed { padding: .9rem 1rem; background: #FDECEA; border: 1.5px solid var(--warn); border-radius: .9rem; overflow-wrap: anywhere; }
+.cs-failed strong { display: block; color: var(--warn); }
+.cs-clip .k-meta { min-height: 3em; overflow-wrap: anywhere; }
+.cs-clip .k-textarea { min-height: 5.2rem; font-size: .9375rem; background: var(--bg); }
+.cs-clip .k-row { margin-top: auto; flex-wrap: nowrap; gap: .5rem; }
+.cs-clip .k-row .k-btn { flex: 1 1 auto; padding-inline: .6rem; white-space: nowrap; }
+.cs-folder { display: flex; flex-wrap: wrap; align-items: flex-end; gap: .6rem 1rem; margin-top: 1.5rem; padding-top: 1rem; border-top: 1.5px solid var(--line); }
+.cs-folder p { flex: 1 1 16rem; min-width: 0; }
+.cs-path { display: block; padding: .45rem .6rem; font-family: var(--mono); font-size: .875rem; background: var(--tint); border-radius: .5rem; overflow-wrap: anywhere; }
+.cs-restart { margin-top: 1.2rem; }
+
+/* ------------------------------------------------------- before you post */
+.cs-before { max-width: 46rem; margin-top: 2.5rem; padding-top: 1rem; border-top: 1.5px solid var(--line); color: var(--ink-2); }
+.cs-before h2 { font-family: var(--display); font-weight: 800; font-size: 1.125rem; color: var(--ink); }
+.cs-before ul { margin-top: .5rem; padding-left: 1.15rem; font-size: .9375rem; }
+.cs-before li + li { margin-top: .4rem; }
+
+/* ----------------------------------------------------------------- small */
+@media (max-width: 64rem) {
+  .cs-opt-grid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .cs-m-state { min-height: 4.2em; }
+}
+@media (max-width: 44rem) {
+  .cs-moment, .cs-opt-grid { grid-template-columns: minmax(0, 1fr); }
+  .cs-score { margin-left: 0; flex-basis: 100%; }
+  .cs-opt-slot { min-height: 7.6rem; }
+  .cs-thumb-slot { width: 5.5rem; }
+  .cs-video { align-items: flex-start; }
+  .cs-video h3 { font-size: 1.1875rem; }
+  .cs-make { align-items: stretch; }
+  .cs-make .cs-alert { text-align: left; }
+  .cs-make .cs-go, .cs-source-grid .cs-go { width: 100%; }
+  .cs-out { min-width: 5.4rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cs-stage.cs-in { animation: none; }
+  progress::-webkit-progress-value { transition: none; }
+  html { scroll-behavior: auto; }
+}
+
+@media print { .cs-band, .cs-steps, .cs-before { display: none !important; } }

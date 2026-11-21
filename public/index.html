@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dost Clip Studio</title>
+  <meta name="description" content="Find the strongest moments in a long video and turn them into vertical shorts with captions. Runs on your own computer.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="kit.css">
+  <link rel="stylesheet" href="styles.css">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <a class="cs-skip" href="#main">Skip to the tool</a>
+
+  <header class="cs-band">
+    <div class="k-top">
+      <span>Dost Clip Studio</span>
+      <span class="k-all" id="version"></span>
+    </div>
+    <div class="cs-hero">
+      <div class="cs-hero-text">
+        <h1>Turn a long video into shorts worth watching</h1>
+        <p>Paste a link or choose a file. The app finds the strongest moments, you review and adjust them, and it makes vertical shorts with captions.</p>
+        <p class="k-private">Runs on this computer. Your video files stay on it.</p>
+      </div>
+      <div class="cs-art" aria-hidden="true">
+        <div class="cs-art-wide"><span></span><span></span><span></span></div>
+        <div class="cs-art-tall"><i></i><i></i></div>
+      </div>
+    </div>
+  </header>
+
+  <main class="k-main" id="main">
+    <nav aria-label="Steps">
+      <ol class="cs-steps" id="steps">
+        <li data-step="source" aria-current="step"><span>Source</span></li>
+        <li data-step="progress"><span>Progress</span></li>
+        <li data-step="moments"><span>Moments</span></li>
+        <li data-step="results"><span>Results</span></li>
+      </ol>
+    </nav>
+
+    <!-- Stage 1: source -->
+    <section class="k-panel cs-stage" id="stage-source" aria-labelledby="h-source">
+      <h2 id="h-source" tabindex="-1">Choose the video</h2>
+      <form id="source-form" novalidate>
+        <div class="k-grid two cs-source-grid">
+          <div>
+            <label class="k-field" for="url"><span>Link to a YouTube video or finished stream</span></label>
+            <input class="k-input" id="url" name="url" type="url" inputmode="url" autocomplete="off" spellcheck="false" maxlength="2000" placeholder="https://www.youtube.com/watch?v=" aria-describedby="url-help source-error">
+            <p class="k-help" id="url-help">Accepted sites: youtube.com and youtu.be.</p>
+
+            <p class="cs-or"><span>or</span></p>
+
+            <div class="k-drop" id="file-drop" aria-describedby="source-error"><strong>Choose a video file from this computer</strong><span>Drop it here or click to choose. MP4, MOV, MKV, WebM, M4V or AVI.</span></div>
+            <div class="cs-file" id="file-row" hidden>
+              <div class="cs-file-line">
+                <span class="cs-file-name" id="file-name"></span>
+                <span class="k-meta" id="file-size"></span>
+                <button class="k-btn ghost small" type="button" id="file-remove">Remove this file</button>
+              </div>
+              <div class="cs-upload" id="upload" hidden>
+                <label class="k-label" for="upload-bar">Copying the file into the app</label>
+                <div class="cs-bar-row">
+                  <progress id="upload-bar" max="1" value="0"></progress>
+                  <span class="cs-pct" id="upload-pct">0%</span>
+                </div>
+              </div>
+              <p class="k-meta" id="upload-status" role="status"></p>
+            </div>
+          </div>
+
+          <div>
+            <div class="k-field">
+              <label class="k-label" for="clip-length">Length of each clip</label>
+              <div class="cs-range-row">
+                <input type="range" id="clip-length" name="clipLength" min="10" max="90" step="1" value="30">
+                <output class="cs-out" id="clip-length-out" for="clip-length">30 seconds</output>
+              </div>
+            </div>
+            <div class="k-field">
+              <label class="k-label" for="clip-count">Number of clips to look for</label>
+              <div class="cs-range-row">
+                <input type="range" id="clip-count" name="count" min="1" max="10" step="1" value="5">
+                <output class="cs-out" id="clip-count-out" for="clip-count">5 clips</output>
+              </div>
+            </div>
+
+            <label class="cs-choice cs-permission" for="permission">
+              <input type="checkbox" id="permission" name="permission" aria-describedby="source-error">
+              <span>I made this video, or I have permission from its owner to clip it.</span>
+            </label>
+
+            <p class="k-error cs-alert" id="source-error" role="alert"></p>
+            <button class="k-btn primary cs-go" type="submit" id="analyze-go">Find the strongest moments</button>
+          </div>
+        </div>
+      </form>
+      <div class="cs-tools" id="tools" role="status" aria-live="polite">
+        <p class="k-meta">Checking which tools are installed.</p>
+      </div>
+    </section>
+
+    <!-- Stage 2: progress of the analysis -->
+    <section class="k-panel cs-stage" id="stage-progress" aria-labelledby="h-progress" hidden>
+      <h2 id="h-progress" tabindex="-1">Finding the strongest moments</h2>
+      <div class="cs-progress" id="an">
+        <p class="cs-step" id="an-step" role="status" aria-live="polite"></p>
+        <label class="k-label" for="an-bar">Progress of the search</label>
+        <div class="cs-bar-row">
+          <progress id="an-bar" max="1" value="0"></progress>
+          <span class="cs-pct" id="an-pct">0%</span>
+          <button class="k-btn ghost small" type="button" id="an-cancel">Cancel</button>
+        </div>
+        <p class="k-error cs-alert" id="an-error" role="alert"></p>
+      </div>
+    </section>
+
+    <!-- Stage 3: moments -->
+    <section class="k-panel cs-stage" id="stage-moments" aria-labelledby="h-moments" hidden>
+      <h2 id="h-moments" tabindex="-1">Review the moments</h2>
+
+      <div class="cs-video">
+        <div class="cs-thumb-slot" id="video-thumb" hidden></div>
+        <div class="cs-video-text">
+          <h3 id="video-title"></h3>
+          <p class="k-meta" id="video-meta"></p>
+        </div>
+      </div>
+
+      <h3 class="cs-sub" id="h-signals">What the app looked at</h3>
+      <ul class="cs-signals" id="signals" aria-labelledby="h-signals"></ul>
+      <p class="cs-note" id="analysis-note" hidden></p>
+
+      <div class="cs-timeline-wrap" aria-hidden="true">
+        <div class="cs-timeline" id="timeline"></div>
+        <div class="cs-timeline-ends"><span>0:00</span><span id="timeline-end"></span></div>
+      </div>
+
+      <fieldset class="cs-plain" id="moments-lock">
+        <legend class="cs-sr">Moments and options for the shorts</legend>
+        <p class="k-help cs-moments-help" id="moments-help">Strongest first. Untick a moment to leave it out. Write times as minutes and seconds, like 1:05 or 1:05.5.</p>
+        <ol class="cs-moments" id="moments"></ol>
+        <button class="k-btn ghost" type="button" id="add-moment">Add a moment yourself</button>
+
+        <fieldset class="cs-options" id="options">
+          <legend>How the shorts should look</legend>
+          <div class="cs-opt-grid">
+            <fieldset class="cs-plain">
+              <legend class="k-label">Layout</legend>
+              <label class="cs-choice cs-layout"><input type="radio" name="layout" value="blur" checked><span class="cs-mini blur" aria-hidden="true"><i></i></span><span>Blurred background, whole picture visible</span></label>
+              <label class="cs-choice cs-layout"><input type="radio" name="layout" value="fill"><span class="cs-mini fill" aria-hidden="true"><i></i></span><span>Fill the frame, sides cropped</span></label>
+            </fieldset>
+
+            <div class="cs-opt-slot">
+              <div id="opt-zoom">
+                <label class="k-label" for="zoom">Zoom of the picture</label>
+                <div class="cs-range-row">
+                  <input type="range" id="zoom" name="zoom" min="1" max="2" step="0.05" value="1.3" aria-describedby="zoom-help">
+                  <output class="cs-out" id="zoom-out" for="zoom">1.30 times</output>
+                </div>
+                <p class="k-help" id="zoom-help">1.00 shows the whole picture. Higher values make it bigger and cut a little off the sides.</p>
+              </div>
+              <fieldset class="cs-plain" id="opt-position" hidden>
+                <legend class="k-label">Part of the picture to keep</legend>
+                <div class="cs-seg">
+                  <label class="cs-choice"><input type="radio" name="position" value="left"><span>Left</span></label>
+                  <label class="cs-choice"><input type="radio" name="position" value="center" checked><span>Centre</span></label>
+                  <label class="cs-choice"><input type="radio" name="position" value="right"><span>Right</span></label>
+                </div>
+              </fieldset>
+            </div>
+
+            <div>
+              <span class="k-label" id="text-label">Text on the video</span>
+              <div role="group" aria-labelledby="text-label">
+                <label class="cs-choice" for="opt-captions"><input type="checkbox" id="opt-captions" name="captions" checked aria-describedby="captions-help"><span>Burn captions into the video</span></label>
+                <p class="k-help" id="captions-help" hidden></p>
+                <label class="cs-choice" for="opt-title"><input type="checkbox" id="opt-title" name="showTitle" checked aria-describedby="title-help"><span>Show the title at the top</span></label>
+                <p class="k-help" id="title-help" hidden></p>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+
+        <div class="cs-make">
+          <button class="k-btn primary cs-go" type="button" id="render-go">Make 5 shorts</button>
+          <p class="k-error cs-alert" id="render-error" role="alert"></p>
+        </div>
+      </fieldset>
+    </section>
+
+    <!-- Stage 4: results -->
+    <section class="k-panel cs-stage" id="stage-results" aria-labelledby="h-results" hidden>
+      <h2 id="h-results" tabindex="-1">Your shorts</h2>
+      <div class="cs-progress" id="rn">
+        <p class="cs-step" id="rn-step" role="status" aria-live="polite"></p>
+        <label class="k-label" for="rn-bar">Progress of the shorts</label>
+        <div class="cs-bar-row">
+          <progress id="rn-bar" max="1" value="0"></progress>
+          <span class="cs-pct" id="rn-pct">0%</span>
+          <button class="k-btn ghost small" type="button" id="rn-cancel">Cancel</button>
+        </div>
+        <p class="k-error cs-alert" id="rn-error" role="alert"></p>
+      </div>
+
+      <div id="results" hidden>
+        <ol class="cs-clips" id="clips"></ol>
+        <div class="cs-folder" id="folder-row" hidden>
+          <p><span class="k-label">The files are saved in this folder on this computer</span><code class="cs-path" id="folder"></code></p>
+          <button class="k-btn ghost small" type="button" id="folder-copy">Copy folder path</button>
+        </div>
+      </div>
+      <div class="cs-restart" id="restart-row" hidden>
+        <button class="k-btn" type="button" id="restart">Start again with another video</button>
+      </div>
+    </section>
+
+    <section class="cs-before" aria-labelledby="h-before">
+      <h2 id="h-before">Before you post</h2>
+      <ul>
+        <li>This tool finds moments that are more likely to hold attention. It cannot make a clip popular.</li>
+        <li>Instagram says accounts that mostly repost other people's videos are not recommended to new viewers, and that adding a border, a watermark or a credit line does not make a repost original. Add your own commentary, or use your own videos.</li>
+        <li>Permission from the owner settles the copyright in the video. Music in a clip can still be claimed separately by whoever owns the music.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script src="kit.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
