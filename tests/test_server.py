@@ -22,7 +22,16 @@ from clipstudio import __main__ as launcher
 from clipstudio import __version__, engine
 from clipstudio import server as web
 from clipstudio.config import Settings
-from clipstudio.server import MARKER, App, fit_clip, open_server, parse_range, server_url, split_host
+from clipstudio.server import (
+    MARKER,
+    App,
+    fit_clip,
+    open_server,
+    parse_range,
+    server_url,
+    split_extension,
+    split_host,
+)
 
 WAIT = 5.0
 MAX_UPLOAD = 2 * 1024 * 1024
@@ -2353,7 +2362,14 @@ def test_using_an_upload_keeps_it_from_looking_old(studio):
     upload = studio.upload()
     stored = studio.app.settings.uploads_dir / f"{upload['uploadId']}.mp4"
     age(stored, 100)
+    # the tidy-up that follows every job runs just after the job reports that it is done: wait for it, so that
+    # it cannot meet the file at the moment this test makes it look old again
+    tidied = threading.Event()
+    tidy = studio.app._cleanup_quietly
+    studio.app._cleanup_quietly = lambda: (tidy(), tidied.set())
     analysis_id = studio.analyze(url=None, uploadId=upload["uploadId"])["analysisId"]
+    assert tidied.wait(WAIT)
+    studio.app._cleanup_quietly = tidy
     assert stored.is_file() and time.time() - stored.stat().st_mtime < 60
     age(stored, 100)
     assert studio.render(analysis_id)["result"]["clips"][0]["ok"]
@@ -2405,6 +2421,23 @@ def test_cleanup_removes_a_link_but_not_what_it_points_at(studio):
 
 
 # ------------------------------------------------------- server and helpers
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("holiday.mp4", ("holiday", ".mp4")),
+        ("Holiday.Final.MOV", ("Holiday.Final", ".mov")),
+        ("...mp4", ("..", ".mp4")),
+        ("a..mkv", ("a.", ".mkv")),
+        (".mp4", (".mp4", "")),
+        ("mp4", ("mp4", "")),
+        ("name.", ("name.", "")),
+        ("", ("", "")),
+    ],
+)
+def test_split_extension_gives_the_same_answer_on_every_python_version(name, expected):
+    assert split_extension(name) == expected
 
 
 def test_the_next_free_port_is_used_when_the_first_is_taken(studio):
