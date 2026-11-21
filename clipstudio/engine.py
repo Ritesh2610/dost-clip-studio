@@ -473,14 +473,50 @@ def _downloaded_file(ydl: Any, info: Any, folder: Path, stem: str) -> Path:
     return path
 
 
-def download_audio(url: str, work: Path) -> Path:
-    """Fetches the smallest audio track, which is enough to measure loudness."""
+# A long stream arrives as thousands of small pieces. Fetched one at a time they take an hour or more.
+AUDIO_PIECES_AT_ONCE = 8
+
+
+def _download_share(status: Any) -> float | None:
+    """How much of a download has arrived, from 0 to 1, read from a yt-dlp progress report."""
+    if not isinstance(status, dict):
+        return None
+    if status.get("status") == "finished":
+        return 1.0
+    pieces, piece = _number(status.get("fragment_count")), _number(status.get("fragment_index"))
+    if pieces > 0:
+        return max(0.0, min(1.0, piece / pieces))
+    total = _number(status.get("total_bytes")) or _number(status.get("total_bytes_estimate"))
+    if total > 0:
+        return max(0.0, min(1.0, _number(status.get("downloaded_bytes")) / total))
+    return None
+
+
+def download_audio(url: str, work: Path, progress: Callable[[float], None] | None = None) -> Path:
+    """Fetches the smallest audio track, which is enough to measure loudness.
+
+    `progress` is called with the share that has arrived, from 0 to 1, many times a second and possibly from
+    several threads. An exception it raises stops the download, which is how a job is cancelled.
+    """
     work = Path(work)
     before = _listing(work)
     # "%" starts a field in yt-dlp's name template, so one that belongs to the folder name is doubled
     template = str(work / "audio").replace("%", "%%") + ".%(ext)s"
+
+    def report(status: Any) -> None:
+        share = _download_share(status)
+        if progress is not None and share is not None:
+            progress(share)
+
+    options = ydl_options(
+        format="worstaudio/bestaudio/worst",
+        outtmpl=template,
+        overwrites=True,
+        concurrent_fragment_downloads=AUDIO_PIECES_AT_ONCE,
+        progress_hooks=[report],
+    )
     try:
-        with open_ydl(ydl_options(format="worstaudio/bestaudio/worst", outtmpl=template, overwrites=True)) as ydl:
+        with open_ydl(options) as ydl:
             info = ydl.extract_info(url, download=True)
             return _downloaded_file(ydl, info, work, "audio")
     except BaseException:
