@@ -278,6 +278,17 @@ def format_bytes(count: int) -> str:
 # --------------------------------------------------------------------- app
 
 
+def split_extension(name: str) -> tuple[str, str]:
+    """A file name without its ending, and the ending in lower case ("" when there is none).
+
+    Written out instead of using pathlib, whose answer for names such as "...mp4" differs between Python versions.
+    """
+    dot = name.rfind(".")
+    if 0 < dot < len(name) - 1:
+        return name[:dot], name[dot:].lower()
+    return name, ""
+
+
 @dataclass
 class Upload:
     id: str
@@ -288,7 +299,7 @@ class Upload:
 
     @property
     def title(self) -> str:
-        return Path(self.name).stem or "Uploaded video"
+        return split_extension(self.name)[0] or "Uploaded video"
 
 
 @dataclass(frozen=True)
@@ -474,7 +485,7 @@ class App:
                 400, "invalid_filename", "The file's name could not be read.", "Rename the file and try again."
             ) from None
         name = clean_text(decoded.replace("\\", "/").rsplit("/", 1)[-1])
-        extension = Path(name).suffix.lower()
+        stem, extension = split_extension(name)
         if extension not in UPLOAD_EXTENSIONS:
             raise AppError(
                 415,
@@ -484,7 +495,7 @@ class App:
                 + ", ".join(UPLOAD_EXTENSIONS[:-1])
                 + f" or {UPLOAD_EXTENSIONS[-1]}.",
             )
-        stem = Path(name).stem.strip(" .")[:150] or "video"
+        stem = stem.strip(" .")[:150] or "video"
         return stem + extension, extension
 
     def add_upload(self, upload: Upload) -> None:
