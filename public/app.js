@@ -320,6 +320,11 @@
     $('#focus-help').hidden = state.options.focus !== 'action';
   }
 
+  function syncPreText() {
+    $('#pre-captions').checked = state.options.captions;
+    $('#pre-title').checked = state.options.showTitle;
+  }
+
   function syncSourceOutputs() {
     const length = $('#clip-length');
     const count = $('#clip-count');
@@ -1131,6 +1136,7 @@
     $('#clip-count').value = String(o.count);
     syncSourceOutputs();
     syncFocus();
+    syncPreText();
     syncLayoutOptions();
     syncTextOptions();
     setStep('source');
@@ -1156,8 +1162,10 @@
     for (const radio of $$('input[name="layout"]')) radio.addEventListener('change', () => { if (radio.checked) { o.layout = radio.value; syncLayoutOptions(); saveOptions(); } });
     for (const radio of $$('input[name="position"]')) radio.addEventListener('change', () => { if (radio.checked) { o.position = radio.value; saveOptions(); } });
     $('#zoom').addEventListener('input', (e) => { o.zoom = clamp(Math.round(Number(e.target.value) * 100) / 100, 1, 2); syncLayoutOptions(); saveOptions(); });
-    $('#opt-captions').addEventListener('change', (e) => { o.captions = e.target.checked; saveOptions(); });
-    $('#opt-title').addEventListener('change', (e) => { o.showTitle = e.target.checked; saveOptions(); });
+    $('#opt-captions').addEventListener('change', (e) => { o.captions = e.target.checked; syncPreText(); saveOptions(); });
+    $('#opt-title').addEventListener('change', (e) => { o.showTitle = e.target.checked; syncPreText(); saveOptions(); });
+    $('#pre-captions').addEventListener('change', (e) => { o.captions = e.target.checked; syncTextOptions(); saveOptions(); });
+    $('#pre-title').addEventListener('change', (e) => { o.showTitle = e.target.checked; syncTextOptions(); saveOptions(); });
     $('#render-go').addEventListener('click', startRender);
 
     $('#folder-copy').addEventListener('click', () => K.copy($('#folder').textContent));
