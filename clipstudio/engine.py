@@ -814,69 +814,94 @@ def find_moments(
     word_times = [w["t"] for w in words]
     averages = {name: sum(sig) / len(sig) for name, sig in used.items()}
     typical = statistics.median(window)
-    taken: list[tuple[float, float]] = []  # accepted clips, in time order
-    blocked = bytearray(len(window))  # window starts that would come too close to an accepted clip
-    moments: list[dict[str, Any]] = []
-    for s in order:
-        if len(moments) >= count:
-            break
-        if blocked[s] and not flat:
-            continue
-        # the free room around this window: it ends where the neighbouring accepted clips begin
-        at = bisect.bisect_left(taken, (float(s), 0.0))
-        low = taken[at - 1][1] + 1.0 if at else 0.0
-        high = taken[at][0] - 1.0 if at < len(taken) else duration
-        peak = s if flat else max(range(s, s + length), key=combined.__getitem__)
-        first = s
-        if peak - s > 0.4 * length:  # pull the strongest second towards the front of the clip
-            first = max(s, min(int(peak - 0.4 * length), seconds - length, int(high - length)))
-        # Cut at pauses in speech. This and the shift above move the clip after it was chosen, so the result is
-        # held inside the free room: without that, two clips picked 5 seconds apart could end up overlapping.
-        start, end = _snap(float(first), float(first + length), pauses, duration, float(length), (peak, peak + 1.0))
-        start = round(max(start, low), 2)
-        end = _floor2(min(end, high, duration, start + length))
-        if end - start < MIN_CLIP:
-            end = _floor2(min(high, duration, start + MIN_CLIP))
-            start = round(max(low, min(start, end - MIN_CLIP)), 2)
-        if not (0 <= start < end <= duration and end - start >= MIN_CLIP - 0.011):
-            continue  # cannot happen for a window that fits; kept so a wrong clip can never be returned
-        bisect.insort(taken, (start, end))
-        a, b = max(0, math.floor(start - _GAP - length) + 1), min(len(window), math.ceil(end + _GAP))
-        blocked[a:b] = b"\x01" * max(0, b - a)
+    # Clear action: at least half of the clip moves far more than is usual for this video. A lower bar would
+    # let in a clip that only touches the edge of an action scene.
+    clear_motion = max(0.5, 1.6 * averages["motion"]) if "motion" in used else 0.0
+    motion_sums = [0.0, *itertools.accumulate(used.get("motion") or [])]
 
-        inside = [w["w"] for w in words[bisect.bisect_left(word_times, start) : bisect.bisect_left(word_times, end)]]
-        text = _plain(clean_caption_text(" ".join(inside[:400])))
-        reasons = []
-        a, b = int(start), max(int(start) + 1, int(end))
+    def busy(a: int, b: int) -> bool:
+        return (motion_sums[b] - motion_sums[a]) / (b - a) >= clear_motion
 
-        def mean(name: str, a: int = a, b: int = b) -> float:
-            return sum(used[name][a:b]) / (b - a)
+    def pick(clear_only: bool) -> list[dict[str, Any]]:
+        """The best windows that do not overlap. With `clear_only`, windows without clear action are passed over."""
+        taken: list[tuple[float, float]] = []  # accepted clips, in time order
+        blocked = bytearray(len(window))  # window starts that would come too close to an accepted clip
+        moments: list[dict[str, Any]] = []
+        for s in order:
+            if len(moments) >= count:
+                break
+            if blocked[s] and not flat:
+                continue
+            if clear_only and not busy(s, s + length):
+                continue
+            # the free room around this window: it ends where the neighbouring accepted clips begin
+            at = bisect.bisect_left(taken, (float(s), 0.0))
+            low = taken[at - 1][1] + 1.0 if at else 0.0
+            high = taken[at][0] - 1.0 if at < len(taken) else duration
+            peak = s if flat else max(range(s, s + length), key=combined.__getitem__)
+            first = s
+            if peak - s > 0.4 * length:  # pull the strongest second towards the front of the clip
+                first = max(s, min(int(peak - 0.4 * length), seconds - length, int(high - length)))
+            # Cut at pauses in speech. This and the shift above move the clip after it was chosen, so the result is
+            # held inside the free room: without that, two clips picked 5 seconds apart could end up overlapping.
+            start, end = _snap(float(first), float(first + length), pauses, duration, float(length), (peak, peak + 1.0))
+            start = round(max(start, low), 2)
+            end = _floor2(min(end, high, duration, start + length))
+            if end - start < MIN_CLIP:
+                end = _floor2(min(high, duration, start + MIN_CLIP))
+                start = round(max(low, min(start, end - MIN_CLIP)), 2)
+            if not (0 <= start < end <= duration and end - start >= MIN_CLIP - 0.011):
+                continue  # cannot happen for a window that fits; kept so a wrong clip can never be returned
+            bisect.insort(taken, (start, end))
+            a, b = max(0, math.floor(start - _GAP - length) + 1), min(len(window), math.ceil(end + _GAP))
+            blocked[a:b] = b"\x01" * max(0, b - a)
 
-        if "motion" in used and mean("motion") >= max(0.2, 1.6 * averages["motion"]):
-            reasons.append("Fast action on screen")
-        if "replays" in used and mean("replays") >= max(0.35, 1.5 * averages["replays"]):
-            reasons.append("Viewers replayed this part")
-        if "audio" in used and mean("audio") >= max(0.2, 1.6 * averages["audio"]):
-            reasons.append("Loud sound" if action else "Loud reaction")
-        if "speech" in used and mean("speech") >= max(0.2, 1.6 * averages["speech"]):
-            reasons.append("Excited or fast speech")
-        if not reasons and flat:
-            reasons.append("Picked to cover the video evenly")
-        elif not reasons and window[s] > typical:
-            reasons.append("Stronger than the rest of the video")
-        elif not reasons:
-            reasons.append("Added to reach the number of clips you asked for")
-        moments.append(
-            {
-                "start": start,
-                "end": end,
-                "peak": peak,
-                "score": 100 if flat else max(1, min(100, round(100 * window[s] / best))),
-                "reasons": reasons,
-                "text": text[:400],
-                "title": suggest_title(text),
-            }
-        )
+            inside = [
+                w["w"] for w in words[bisect.bisect_left(word_times, start) : bisect.bisect_left(word_times, end)]
+            ]
+            text = _plain(clean_caption_text(" ".join(inside[:400])))
+            reasons = []
+            a, b = int(start), max(int(start) + 1, int(end))
+
+            def mean(name: str, a: int = a, b: int = b) -> float:
+                return sum(used[name][a:b]) / (b - a)
+
+            if "motion" in used and (clear_only or mean("motion") >= max(0.2, 1.6 * averages["motion"])):
+                reasons.append("Fast action on screen")
+            if "replays" in used and mean("replays") >= max(0.35, 1.5 * averages["replays"]):
+                reasons.append("Viewers replayed this part")
+            if "audio" in used and mean("audio") >= max(0.2, 1.6 * averages["audio"]):
+                reasons.append("Loud sound" if action else "Loud reaction")
+            if "speech" in used and mean("speech") >= max(0.2, 1.6 * averages["speech"]):
+                reasons.append("Excited or fast speech")
+            if not reasons and flat:
+                reasons.append("Picked to cover the video evenly")
+            elif not reasons and window[s] > typical:
+                reasons.append("Stronger than the rest of the video")
+            elif not reasons:
+                reasons.append("Added to reach the number of clips you asked for")
+            moments.append(
+                {
+                    "start": start,
+                    "end": end,
+                    "peak": peak,
+                    "score": 100 if flat else max(1, min(100, round(100 * window[s] / best))),
+                    "reasons": reasons,
+                    "text": text[:400],
+                    # what is said during game action is rarely about it, so no title is made up from it
+                    "title": "" if action else suggest_title(text),
+                }
+            )
+        return moments
+
+    moments = pick(clear_only=action and "motion" in used and not flat)
+    if action and "motion" in used and not flat:
+        if not moments:
+            moments = pick(clear_only=False)
+            note = "No part of this video had clearly more action on screen than the rest, so these moments go by sound and replays."
+        elif len(moments) < count:
+            found = "1 moment" if len(moments) == 1 else f"{len(moments)} moments"
+            note = f"Only {found} with clear action on screen could be found in this video."
     moments.sort(key=lambda m: -m["score"])
     return {"moments": moments, "signals": summary, "note": note}
 
