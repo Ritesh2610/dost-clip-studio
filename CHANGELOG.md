@@ -6,7 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+### Added
+
+- A choice of what to look for: "Talk and reactions", as before, or "Game action on screen", which goes by movement in the picture, loudness and replay data, and not by what is said.
+
 ### Changed
+
+- The captions switch on the review screen now reads "Add captions to the video".
 
 - Analysing a long stream is much faster. Its sound arrives as thousands of small pieces, and the app now fetches eight of them at a time.
 - The app and the log show how far the sound download is, and Cancel stops it while it runs.

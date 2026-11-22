@@ -6,7 +6,7 @@
   const { $, $$, el } = K;
 
   const DEFAULT_LIMITS = { minClipSeconds: 8, maxClipSeconds: 90, maxClips: 10, maxUploadBytes: 4 * 1024 ** 3, allowedHosts: ['youtube.com', 'youtu.be'] };
-  const DEFAULT_OPTIONS = { clipLength: 30, count: 5, layout: 'blur', zoom: 1.3, position: 'center', captions: true, showTitle: true };
+  const DEFAULT_OPTIONS = { clipLength: 30, count: 5, focus: 'talk', layout: 'blur', zoom: 1.3, position: 'center', captions: true, showTitle: true };
   const VIDEO_EXTENSIONS = ['.mp4', '.mov', '.mkv', '.webm', '.m4v', '.avi'];
   const OPTIONS_KEY = 'clipstudio.options';
   const SESSION_KEY = 'clipstudio.session';
@@ -83,6 +83,7 @@
     if (!saved || typeof saved !== 'object') return o;
     if (Number.isInteger(saved.clipLength)) o.clipLength = clamp(saved.clipLength, 10, 90);
     if (Number.isInteger(saved.count)) o.count = clamp(saved.count, 1, 10);
+    if (saved.focus === 'talk' || saved.focus === 'action') o.focus = saved.focus;
     if (saved.layout === 'blur' || saved.layout === 'fill') o.layout = saved.layout;
     if (typeof saved.zoom === 'number' && Number.isFinite(saved.zoom)) o.zoom = clamp(saved.zoom, 1, 2);
     if (['left', 'center', 'right'].includes(saved.position)) o.position = saved.position;
@@ -314,6 +315,11 @@
 
   const sourceError = $('#source-error');
 
+  function syncFocus() {
+    for (const radio of $$('input[name="focus"]')) radio.checked = radio.value === state.options.focus;
+    $('#focus-help').hidden = state.options.focus !== 'action';
+  }
+
   function syncSourceOutputs() {
     const length = $('#clip-length');
     const count = $('#clip-count');
@@ -473,7 +479,7 @@
     clearAnalysis();
     setStep('source');
 
-    const body = { clipLength: Number($('#clip-length').value), count: Number($('#clip-count').value), permission: true };
+    const body = { clipLength: Number($('#clip-length').value), count: Number($('#clip-count').value), focus: state.options.focus, permission: true };
     const usingFile = Boolean(state.file);
     let jobId = '';
     setBusy('analyze');
@@ -822,7 +828,7 @@
     const noText = `This copy of ffmpeg cannot draw text on video. ${INSTALL_HINT.replace('it can', 'the right one can')}`;
     captions.disabled = !filterOk || !hasCaptions;
     captions.checked = !captions.disabled && state.options.captions;
-    captionsHelp.textContent = !filterOk ? noText : !hasCaptions ? 'No captions were found for this video, so there is nothing to burn in.' : '';
+    captionsHelp.textContent = !filterOk ? noText : !hasCaptions ? 'No captions were found for this video, so there are none to add.' : '';
     captionsHelp.hidden = !captionsHelp.textContent;
     title.disabled = !filterOk;
     title.checked = !title.disabled && state.options.showTitle;
@@ -882,6 +888,7 @@
     const signal = (on, words) => el('li', { class: on ? 'on' : '' }, el('span', {}, words));
     $('#signals').replaceChildren(
       signal(signals.replays === true, `Replay data from YouTube: ${signals.replays === true ? 'found' : fromLink ? 'not available for this video' : 'not available for a file from this computer'}`),
+      ...(r.focus === 'action' ? [signal(signals.motion === true, `Movement on screen: ${signals.motion === true ? 'measured' : 'could not be measured'}`)] : []),
       signal(signals.audio === true, `Audio loudness: ${signals.audio === true ? 'measured' : 'could not be measured'}`),
       signal(a.hasCaptions, `Captions: ${a.hasCaptions ? captionLabel || 'found' : 'none found, so clips will have no captions'}`),
     );
@@ -1123,6 +1130,7 @@
     $('#clip-length').value = String(o.clipLength);
     $('#clip-count').value = String(o.count);
     syncSourceOutputs();
+    syncFocus();
     syncLayoutOptions();
     syncTextOptions();
     setStep('source');
@@ -1130,6 +1138,7 @@
     $('#source-form').addEventListener('submit', startAnalysis);
     $('#clip-length').addEventListener('input', (e) => { o.clipLength = Number(e.target.value); syncSourceOutputs(); saveOptions(); });
     $('#clip-count').addEventListener('input', (e) => { o.count = Number(e.target.value); syncSourceOutputs(); saveOptions(); });
+    for (const radio of $$('input[name="focus"]')) radio.addEventListener('change', () => { if (radio.checked) { o.focus = radio.value; syncFocus(); saveOptions(); } });
     $('#url').addEventListener('input', () => { if (sourceError.textContent) clearSourceError(); });
     $('#permission').addEventListener('change', () => { if (sourceError.textContent) clearSourceError(); });
     K.drop($('#file-drop'), chooseFile, { accept: `${VIDEO_EXTENSIONS.join(',')},video/*`, multiple: false });

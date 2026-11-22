@@ -74,6 +74,12 @@
           </div>
 
           <div>
+            <fieldset class="cs-plain k-field" id="focus">
+              <legend class="k-label">What to look for</legend>
+              <label class="cs-choice"><input type="radio" name="focus" value="talk" checked><span>Talk and reactions</span></label>
+              <label class="cs-choice"><input type="radio" name="focus" value="action" aria-describedby="focus-help"><span>Game action on screen</span></label>
+              <p class="k-help" id="focus-help" hidden>The app watches the picture for fast movement and does not go by what is said. For a link it first downloads a small copy of the whole video, so a long stream takes longer.</p>
+            </fieldset>
             <div class="k-field">
               <label class="k-label" for="clip-length">Length of each clip</label>
               <div class="cs-range-row">
@@ -177,7 +183,7 @@
             <div>
               <span class="k-label" id="text-label">Text on the video</span>
               <div role="group" aria-labelledby="text-label">
-                <label class="cs-choice" for="opt-captions"><input type="checkbox" id="opt-captions" name="captions" checked aria-describedby="captions-help"><span>Burn captions into the video</span></label>
+                <label class="cs-choice" for="opt-captions"><input type="checkbox" id="opt-captions" name="captions" checked aria-describedby="captions-help"><span>Add captions to the video</span></label>
                 <p class="k-help" id="captions-help" hidden></p>
                 <label class="cs-choice" for="opt-title"><input type="checkbox" id="opt-title" name="showTitle" checked aria-describedby="title-help"><span>Show the title at the top</span></label>
                 <p class="k-help" id="title-help" hidden></p>

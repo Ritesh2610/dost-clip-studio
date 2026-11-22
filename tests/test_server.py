@@ -78,7 +78,9 @@ class FakeEngine:
             "inspect_url",
             "inspect_file",
             "download_audio",
+            "download_preview",
             "audio_levels",
+            "motion_levels",
             "find_moments",
             "fetch_section",
             "build_ass",
@@ -167,16 +169,39 @@ class FakeEngine:
         target.write_bytes(b"AUDIO")
         return target
 
+    def download_preview(self, url: str, work_dir: Path, progress=None) -> Path:
+        self._enter("download_preview", url, work_dir)
+        assert Path(work_dir).is_dir()
+        if progress is not None:
+            for share in self.sound_shares:
+                progress(share)
+        target = Path(work_dir) / "preview.mp4"
+        target.write_bytes(b"PREVIEW")
+        return target
+
     def audio_levels(self, source) -> list[float]:
         self._enter("audio_levels", source)
         assert Path(source).is_file()
         return [-30.0] * int(self.duration)
 
-    def find_moments(self, duration, heatmap, levels, words, length=30, count=5) -> dict:
-        self._enter("find_moments", duration, heatmap, levels, words, length=length, count=count)
+    def motion_levels(self, source) -> list[float]:
+        self._enter("motion_levels", source)
+        assert Path(source).is_file()
+        return [4.0] * int(self.duration)
+
+    def find_moments(self, duration, heatmap, levels, words, length=30, count=5, motion=None, focus="talk") -> dict:
+        self._enter(
+            *("find_moments", duration, heatmap, levels, words),
+            **{"length": length, "count": count, "motion": motion, "focus": focus},
+        )
         return {
             "moments": [dict(m) for m in self.moments[:count]],
-            "signals": {"replays": bool(heatmap), "audio": bool(levels), "speech": bool(words)},
+            "signals": {
+                "replays": bool(heatmap),
+                "audio": bool(levels),
+                "speech": bool(words),
+                "motion": bool(motion),
+            },
             "note": ""
             if self.moments
             else "There was nothing to measure: no replay data, no readable audio and no captions.",
@@ -1149,7 +1174,8 @@ def test_analyze_a_link_gives_the_exact_result_shape(studio):
             "thumbnail": "https://i.ytimg.com/vi/abcDEF12345/hq.jpg",
             "wasLive": True,
         },
-        "signals": {"replays": True, "audio": True, "speech": True},
+        "signals": {"replays": True, "audio": True, "speech": True, "motion": False},
+        "focus": "talk",
         "captionLabel": "en (automatic)",
         "note": "",
         "moments": [
@@ -1195,7 +1221,7 @@ def test_analyze_a_link_calls_the_engine_in_order_and_tidies_up(studio):
     args, kwargs = fake.named("find_moments")[0]
     assert args[0] == 120.0 and args[1] == [{"start_time": 40.0, "end_time": 50.0, "value": 1.0}]
     assert len(args[2]) == 120 and args[3] == WORDS
-    assert kwargs == {"length": 45, "count": 3}
+    assert kwargs == {"length": 45, "count": 3, "motion": [], "focus": "talk"}
     assert studio.stored(studio.app.settings.work_dir) == []  # the audio track is gone again
 
 
@@ -1210,7 +1236,7 @@ def test_analyze_an_uploaded_file(studio):
         "thumbnail": "",
         "wasLive": False,
     }
-    assert result["signals"] == {"replays": False, "audio": True, "speech": False}
+    assert result["signals"] == {"replays": False, "audio": True, "speech": False, "motion": False}
     assert result["captionLabel"] == ""
     stored = studio.app.settings.uploads_dir / f"{upload['uploadId']}.mp4"
     assert studio.fake.named("inspect_file")[0][0] == (stored,)
@@ -1340,7 +1366,7 @@ def test_analyze_with_fields_missing_altogether(studio):
 def test_the_edges_of_the_allowed_ranges_are_accepted(studio, clip_length, count):
     studio.analyze(clipLength=clip_length, count=count)
     kwargs = studio.fake.named("find_moments")[0][1]
-    assert kwargs == {"length": int(clip_length), "count": int(count)}
+    assert kwargs == {"length": int(clip_length), "count": int(count), "motion": [], "focus": "talk"}
     assert type(kwargs["length"]) is int and type(kwargs["count"]) is int
 
 
@@ -1367,18 +1393,69 @@ def test_a_file_can_be_analyzed_without_ytdlp(studio):
 def test_analysis_carries_on_without_sound_when_the_audio_fails(studio):
     studio.fake.fail["download_audio"] = RuntimeError("ERROR: unable to download audio: HTTP Error 403")
     result = studio.analyze()
-    assert result["signals"] == {"replays": True, "audio": False, "speech": True}
+    assert result["signals"] == {"replays": True, "audio": False, "speech": True, "motion": False}
     assert len(result["moments"]) == 2
     assert studio.fake.named("audio_levels") == []
     assert studio.fake.named("find_moments")[0][0][2] == []
     assert "carrying on without it" in studio.log_text and "Traceback" in studio.log_text
 
 
+def test_action_focus_fetches_a_small_copy_of_the_video_and_measures_movement(studio):
+    studio.fake.sound_shares = [0.5, 1.0]
+    result = studio.analyze(focus="action")
+    fake = studio.fake
+    order = [name for name, _, _ in fake.calls if name != "tool_status"]
+    assert order == ["inspect_url", "download_preview", "audio_levels", "motion_levels", "find_moments"]
+    assert fake.named("download_audio") == [], "the sound alone is not fetched as well"
+    preview = fake.named("audio_levels")[0][0][0]
+    assert Path(preview).name == "preview.mp4" and fake.named("motion_levels")[0][0][0] == preview
+    _, kwargs = fake.named("find_moments")[0]
+    assert kwargs["focus"] == "action" and kwargs["motion"] == [4.0] * 120
+    assert result["focus"] == "action" and result["signals"]["motion"] is True
+    assert "small copy of the video: 100% downloaded" in studio.log_text
+    assert list(studio.app.settings.work_dir.glob("job-*")) == [], "the copy is removed when the job ends"
+
+
+def test_action_focus_on_an_uploaded_file_measures_the_file_itself(studio):
+    upload = studio.upload()
+    result = studio.analyze(url=None, uploadId=upload["uploadId"], focus="action")
+    stored = studio.app.settings.uploads_dir / f"{upload['uploadId']}.mp4"
+    assert studio.fake.named("download_preview") == [] and studio.fake.named("download_audio") == []
+    assert Path(studio.fake.named("motion_levels")[0][0][0]) == stored
+    assert result["signals"]["motion"] is True
+
+
+def test_talk_focus_never_measures_movement(studio):
+    studio.analyze()
+    assert studio.fake.named("motion_levels") == [] and studio.fake.named("download_preview") == []
+
+
+def test_action_focus_carries_on_when_the_picture_cannot_be_measured(studio):
+    studio.fake.fail["motion_levels"] = RuntimeError("ffmpeg could not read the picture")
+    result = studio.analyze(focus="action")
+    assert result["signals"] == {"replays": True, "audio": True, "speech": True, "motion": False}
+    assert "the picture could not be measured, carrying on without it" in studio.log_text
+
+
+def test_action_focus_carries_on_when_the_copy_cannot_be_fetched(studio):
+    studio.fake.fail["download_preview"] = RuntimeError("ERROR: unable to download video data: HTTP Error 403")
+    result = studio.analyze(focus="action")
+    assert result["signals"]["audio"] is False and result["signals"]["motion"] is False
+    assert studio.fake.named("motion_levels") == [], "there is no file to measure"
+
+
+@pytest.mark.parametrize("focus", ["", "games", "ACTION", 1, None, ["action"]])
+def test_an_unknown_focus_is_refused(studio, focus):
+    reply = studio.call("POST", "/api/analyze", data={**ANALYZE, "focus": focus})
+    assert_error(reply, 400, "invalid_focus")
+    assert studio.fake.named("inspect_url") == []
+
+
 def test_analysis_carries_on_when_measuring_loudness_fails(studio):
     studio.fake.fail["audio_levels"] = RuntimeError("ffmpeg could not read the audio")
     upload = studio.upload()
     result = studio.analyze(url=None, uploadId=upload["uploadId"])
-    assert result["signals"] == {"replays": False, "audio": False, "speech": False}
+    assert result["signals"] == {"replays": False, "audio": False, "speech": False, "motion": False}
 
 
 @pytest.mark.parametrize(

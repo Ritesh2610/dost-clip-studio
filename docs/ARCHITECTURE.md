@@ -51,6 +51,7 @@ Browser (public/app.js)        server.py                    jobs.py             
         |  POST /api/analyze       |                           |                        |
         |  {url or uploadId,       |                           |                        |
         |   clipLength, count,     |                           |                        |
+        |   focus,                 |                           |                        |
         |   permission: true}      |                           |                        |
         |------------------------->|                           |                        |
         |                          | check Host and Origin     |                        |
@@ -82,9 +83,10 @@ Browser (public/app.js)        server.py                    jobs.py             
 1. The server refuses the request before any work starts if a check fails. A missing or false `permission` gives a 400 error with the code `permission_required`.
 2. For a link, `inspect_url` reads the title, channel, duration, replay data and captions without downloading the video. For a file, `inspect_file` reads its duration.
 3. The app measures loudness for each second. For a link it first downloads the smallest audio track, which is enough for this. For a file it reads the audio from the file.
-4. `find_moments` combines the signals and returns the ranked moments. The scoring is described in the [README](../README.md#how-the-strongest-moments-are-found).
-5. If the audio cannot be fetched or measured, the analysis carries on with the other signals and the failure is logged.
-6. The server keeps the source details and caption words in memory under an `analysisId`, so a later render request does not need to send them back and cannot change them. It remembers the 20 most recent analyses.
+4. `focus` is `"talk"` (the default) or `"action"`. With `"action"`, a link is fetched with `download_preview` instead, the smallest copy that has picture and sound, and `motion_levels` then measures how much the picture changes in each second. The diagram shows the `"talk"` path.
+5. `find_moments` combines the signals and returns the ranked moments. The scoring is described in the [README](../README.md#how-the-strongest-moments-are-found).
+6. If the audio or the picture cannot be fetched or measured, the analysis carries on with the other signals and the failure is logged.
+7. The server keeps the source details and caption words in memory under an `analysisId`, so a later render request does not need to send them back and cannot change them. It remembers the 20 most recent analyses.
 
 ## How a render runs
 
@@ -137,7 +139,7 @@ Browser                        server.py                    jobs.py             
 - There is one worker thread for each kind of job. One analysis and one render can run at the same time. Further jobs of the same kind wait in the order they arrived.
 - At most 10 jobs of a kind can wait. A request beyond that is refused.
 - The app remembers up to 50 jobs. When the list is full, the oldest finished job is forgotten.
-- Cancelling is cooperative. A waiting job is cancelled at once. A running job stops at its next checkpoint. Checkpoints sit between steps and inside the sound download of an analysis, which reports its progress many times a second. A clip download or an ffmpeg run that has started is allowed to finish first.
+- Cancelling is cooperative. A waiting job is cancelled at once. A running job stops at its next checkpoint. Checkpoints sit between steps and inside the download that an analysis makes, which reports its progress many times a second. A clip download or an ffmpeg run that has started is allowed to finish first.
 - Jobs live in memory. Restarting the app forgets them.
 - The job's work folder, `data/work/job-<id>/`, is removed when the job ends, whether it finished, failed or was cancelled.
 

@@ -10,7 +10,7 @@ Project page: <https://ritesh2610.github.io/dost-clip-studio/>
 
 It does:
 
-- Find the strongest moments of a video from three signals: YouTube's replay data, audio loudness and captions.
+- Find the strongest moments of a video. You choose what to look for: talk and reactions (YouTube's replay data, audio loudness and captions), or game action on screen (movement in the picture, audio loudness and replay data).
 - Show you each moment with a score and the reasons for it, so you can review it and adjust the start, the end and the title.
 - Render vertical shorts with burned-in captions, a blurred background or a fill crop, and an optional title.
 - Run locally. The work happens on your computer, and your video files stay on it.
@@ -96,7 +96,7 @@ The finished files are also in `data/output/`, one folder for each render: `clip
 
 ## How the strongest moments are found
 
-The app gives every second of the video a value between 0 and 1 from up to three signals.
+On the first screen you choose what to look for. With **Talk and reactions**, the app gives every second of the video a value between 0 and 1 from up to three signals.
 
 | Signal | Weight | Where it comes from |
 | --- | --- | --- |
@@ -104,7 +104,17 @@ The app gives every second of the video a value between 0 and 1 from up to three
 | Audio | 0.3 | Loudness measured by ffmpeg for each second. A second scores high when it is louder than the rest of the video, or much louder than the 20 seconds before it. |
 | Speech | 0.2 | The video's captions. Reaction words, exclamations and fast speech raise the value. Captions that mark music lower it. |
 
-Then:
+With **Game action on screen**, what is said does not count. This is meant for game streams, where the talking is not the point.
+
+| Signal | Weight | Where it comes from |
+| --- | --- | --- |
+| Movement | 0.45 | How much the picture changes from one key frame to the next, measured by ffmpeg. A second scores high when there is more movement than in the rest of the video. A single changed frame, such as a cut to another scene, is not counted. |
+| Audio | 0.3 | The same loudness measurement as above. |
+| Replays | 0.25 | The same replay graph as above. |
+
+For a link, this choice downloads the smallest copy of the whole video instead of only its sound, which is some hundreds of megabytes for a stream of many hours. Movement is a rough stand-in for action: a fast camera pan through an empty street scores like a fight. Review the moments before you render them.
+
+Then, for both choices:
 
 1. **The weights are shared over the signals that exist.** Not every video has all three. If a video has no replay data, audio and speech are scaled up to 0.6 and 0.4. If only audio is available, it counts for everything. The app tells you which signals it used.
 2. **Every possible clip is scored.** For each start time, the score is 60 percent the average value across the clip and 40 percent its highest second.
