@@ -2295,6 +2295,59 @@ def test_action_focus_names_a_loud_part_as_sound_not_as_a_reaction() -> None:
     assert engine.find_moments(300, [], levels, [], length=20, count=1)["moments"][0]["reasons"] == ["Loud reaction"]
 
 
+def test_action_focus_keeps_only_the_moments_with_clear_action() -> None:
+    seconds = 1200
+    motion = [2.0] * seconds
+    motion[300:340] = [40.0] * 40
+    motion[900:935] = [35.0] * 35
+    levels = [-40.0] * seconds
+    levels[600:630] = [-5.0] * 30  # the loudest part of the video, with a still picture
+    found = engine.find_moments(seconds, [], levels, [], length=30, count=5, motion=motion, focus="action")
+    starts = sorted(m["start"] for m in found["moments"])
+    assert len(starts) == 2 and 285 <= starts[0] <= 315 and 885 <= starts[1] <= 910, starts
+    assert all("Fast action on screen" in m["reasons"] for m in found["moments"])
+    assert found["note"] == "Only 2 moments with clear action on screen could be found in this video."
+    # the same video searched for talk and reactions picks the loud part first and fills up to the number asked for
+    talk = engine.find_moments(seconds, [], levels, [], length=30, count=5)
+    assert len(talk["moments"]) == 5 and 590 <= talk["moments"][0]["start"] <= 615
+
+
+def test_action_focus_says_so_when_only_one_moment_has_clear_action() -> None:
+    motion = [2.0] * 600
+    motion[200:240] = [40.0] * 40
+    found = engine.find_moments(600, [], [-30.0] * 600, [], length=30, count=3, motion=motion, focus="action")
+    assert len(found["moments"]) == 1
+    assert found["note"] == "Only 1 moment with clear action on screen could be found in this video."
+
+
+def test_action_focus_gives_the_number_asked_for_when_there_is_enough_action() -> None:
+    motion = [2.0] * 3000
+    for start in range(200, 3000, 400):
+        motion[start : start + 40] = [40.0] * 40
+    found = engine.find_moments(3000, [], [-30.0] * 3000, [], length=30, count=4, motion=motion, focus="action")
+    assert len(found["moments"]) == 4 and found["note"] == ""
+    assert_valid_result(found, 3000, 30, 4)
+
+
+def test_action_focus_falls_back_to_sound_when_no_part_has_clear_action() -> None:
+    levels = [-40.0] * 600
+    levels[300:320] = [-6.0] * 20
+    found = engine.find_moments(600, [], levels, [], length=30, count=2, motion=[3.0] * 600, focus="action")
+    assert len(found["moments"]) == 2 and 285 <= found["moments"][0]["start"] <= 305
+    assert "No part of this video had clearly more action on screen" in found["note"]
+    assert all("Fast action on screen" not in m["reasons"] for m in found["moments"])
+
+
+def test_action_focus_makes_up_no_title_from_what_is_said() -> None:
+    motion = [2.0] * 600
+    motion[200:240] = [40.0] * 40
+    words = [{"t": 195 + i * 0.5, "d": 0.4, "w": f"word{i}"} for i in range(120)]
+    action = engine.find_moments(600, [], [-30.0] * 600, words, length=30, count=1, motion=motion, focus="action")
+    assert action["moments"][0]["title"] == "" and action["moments"][0]["text"] != ""
+    talk = engine.find_moments(600, [], [-30.0] * 600, words, length=30, count=1)
+    assert talk["moments"][0]["title"] != ""
+
+
 def test_action_focus_with_nothing_to_measure() -> None:
     found = engine.find_moments(300, [], [], [{"t": 5.0, "d": 0.3, "w": "wow"}] * 40, focus="action")
     assert found["moments"] == [] and "no picture that could be read" in found["note"]
