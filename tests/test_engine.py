@@ -14,6 +14,7 @@ import random
 import re
 import shutil
 import socket
+import statistics
 import subprocess
 import sys
 import time
@@ -109,7 +110,7 @@ def random_case(seed: int) -> dict[str, Any]:
 def assert_valid_result(result: dict[str, Any], duration: float, length: int, count: int) -> None:
     """Everything find_moments promises about its return value."""
     assert set(result) == {"moments", "signals", "note"}
-    assert set(result["signals"]) == {"replays", "audio", "speech"}
+    assert set(result["signals"]) == {"replays", "audio", "speech", "motion"}
     assert all(isinstance(v, bool) for v in result["signals"].values())
     assert isinstance(result["note"], str)
     moments = result["moments"]
@@ -733,7 +734,7 @@ def test_audio_alone_finds_both_loud_bursts() -> None:
     assert_valid_result(result, 120, 20, 3)
     top = sorted((m["start"], m["end"]) for m in result["moments"][:2])
     assert top[0][0] <= 41 <= top[0][1] and top[1][0] <= 90 <= top[1][1]
-    assert result["signals"] == {"replays": False, "audio": True, "speech": False}
+    assert result["signals"] == {"replays": False, "audio": True, "speech": False, "motion": False}
     assert result["moments"][0]["reasons"] == ["Loud reaction"]
     for m in result["moments"][:2]:  # the burst sits in the first part of its clip, not at the very end
         assert m["start"] <= m["peak"] <= m["start"] + 0.45 * (m["end"] - m["start"])
@@ -748,7 +749,7 @@ def test_replay_peak_wins_over_the_always_high_intro() -> None:
     assert_valid_result(result, 120, 15, 2)
     best = result["moments"][0]
     assert best["start"] <= 72 <= best["end"] and best["reasons"] == ["Viewers replayed this part"]
-    assert result["signals"] == {"replays": True, "audio": False, "speech": False}
+    assert result["signals"] == {"replays": True, "audio": False, "speech": False, "motion": False}
 
 
 def test_excited_speech_is_found_from_captions_alone() -> None:
@@ -759,18 +760,23 @@ def test_excited_speech_is_found_from_captions_alone() -> None:
     assert best["start"] <= 65 <= best["end"] and "Excited or fast speech" in best["reasons"]
     assert "[" not in best["text"] and "Laughter" not in best["text"]
     assert best["title"] and best["title"][0].isupper()
-    assert result["signals"] == {"replays": False, "audio": False, "speech": True}
+    assert result["signals"] == {"replays": False, "audio": False, "speech": True, "motion": False}
 
 
 def test_nothing_to_measure_is_reported_not_raised() -> None:
     result = engine.find_moments(120, [], [], [], 20, 3)
     assert result["moments"] == [] and "nothing to measure" in result["note"]
-    assert result["signals"] == {"replays": False, "audio": False, "speech": False}
+    assert result["signals"] == {"replays": False, "audio": False, "speech": False, "motion": False}
 
 
 def test_too_few_measurements_do_not_count_as_a_signal() -> None:
     result = engine.find_moments(120, [], [-20.0] * 9, spoken(19), 20, 3)
-    assert result["moments"] == [] and result["signals"] == {"replays": False, "audio": False, "speech": False}
+    assert result["moments"] == [] and result["signals"] == {
+        "replays": False,
+        "audio": False,
+        "speech": False,
+        "motion": False,
+    }
 
 
 @pytest.mark.parametrize(
@@ -1667,7 +1673,7 @@ def test_audio_levels_of_a_video_without_sound_is_empty(media: Any) -> None:
     assert result["moments"] == [] and result["signals"]["audio"] is False
     heat = [{"start_time": 100, "end_time": 130, "value": 1.0}, {"start_time": 0, "end_time": 300, "value": 0.1}]
     with_heat = engine.find_moments(300, heat, engine.audio_levels(media.source("silent")), [], 30, 1)
-    assert with_heat["signals"] == {"replays": True, "audio": False, "speech": False}
+    assert with_heat["signals"] == {"replays": True, "audio": False, "speech": False, "motion": False}
     assert with_heat["moments"][0]["start"] <= 100 < with_heat["moments"][0]["end"]
 
 
@@ -2204,6 +2210,100 @@ def test_download_audio_fetches_several_pieces_of_a_stream_at_once(
 )
 def test_download_share(status: Any, expected: float | None) -> None:
     assert engine._download_share(status) == expected
+
+
+def test_download_preview_fetches_picture_and_sound(ytdlp: Any, http_server: Any, media: Any, tmp_path: Path) -> None:
+    shares: list[float] = []
+    path = engine.download_preview(http_server.url("sample.mp4"), tmp_path, progress=shares.append)
+    assert path == tmp_path / "preview.mp4" and folder_names(tmp_path) == ["preview.mp4"]
+    info = media.info(path)
+    assert "Video:" in info and "Audio:" in info and shares[-1] == 1.0
+    assert len(engine.motion_levels(path)) >= 50 and len(engine.audio_levels(path)) >= 50
+
+
+def calm_busy_calm(media: Any, folder: Path, key_frames_every: int = 20) -> Path:
+    """30 seconds of video: a still grey picture, then 10 seconds of a moving test picture, then grey again."""
+    out = folder / f"calm-busy-calm-{key_frames_every}.mp4"
+    still = "color=c=gray:s=320x180:r=10:d=10"
+    media.run(
+        *("-f", "lavfi", "-i", still, "-f", "lavfi", "-i", "testsrc2=s=320x180:r=10:d=10", "-f", "lavfi", "-i", still),
+        *("-f", "lavfi", "-i", "sine=frequency=300:sample_rate=44100:duration=30"),
+        *("-filter_complex", "[0:v][1:v][2:v]concat=n=3:v=1:a=0[v]", "-map", "[v]", "-map", "3:a"),
+        *("-c:v", "libx264", "-preset", "ultrafast", "-g", str(key_frames_every), "-keyint_min", str(key_frames_every)),
+        *("-sc_threshold", "0", "-pix_fmt", "yuv420p", "-c:a", "aac", "-b:a", "48k", "-shortest", "-y", str(out)),
+    )
+    return out
+
+
+@pytest.mark.parametrize("key_frames_every", [20, 300])  # every 2 seconds; and only one in the whole file
+def test_motion_levels_tell_a_moving_picture_from_a_still_one(
+    media: Any, tmp_path: Path, key_frames_every: int
+) -> None:
+    levels = engine.motion_levels(calm_busy_calm(media, tmp_path, key_frames_every))
+    assert 27 <= len(levels) <= 30
+    assert max(levels[:8]) < 1 and max(levels[22:]) < 1, "the still parts measure as still"
+    assert min(levels[12:19]) > 3, "the moving part measures as moving"
+    # the cut from still to moving, and back, is one changed frame: it must not count as more movement than the rest
+    assert max(levels) < 2 * statistics.median(levels[12:19])
+
+
+def test_motion_levels_of_a_file_without_a_picture(media: Any, tmp_path: Path) -> None:
+    sound = tmp_path / "sound.m4a"
+    media.run("-f", "lavfi", "-i", "sine=frequency=300:duration=3", "-c:a", "aac", "-y", str(sound))
+    assert engine.motion_levels(sound) == []
+
+
+def test_motion_levels_of_a_file_that_is_not_media(tmp_path: Path) -> None:
+    (tmp_path / "notes.mp4").write_text("not a video", encoding="utf-8")
+    with pytest.raises(RuntimeError, match="could not read the picture"):
+        engine.motion_levels(tmp_path / "notes.mp4")
+
+
+def test_motion_signal() -> None:
+    assert engine.motion_signal([], 100) is None and engine.motion_signal([5.0] * 9, 100) is None
+    assert engine.motion_signal([5.0] * 50, 0) is None
+    levels = [2.0] * 100 + [30.0] * 20 + [2.0] * 100
+    signal = engine.motion_signal(levels, 220)
+    assert signal is not None and len(signal) == 220
+    assert all(0.0 <= v <= 1.0 for v in signal)
+    assert max(signal[:95]) == 0 and max(signal[125:]) == 0 and min(signal[103:117]) == 1.0
+    # values that are no numbers, or lie outside 0..255, do no harm, and missing seconds count as ordinary
+    odd = engine.motion_signal([2.0, "x", None, -5, 1e9, float("nan")] * 5, 60)
+    assert odd is not None and len(odd) == 60 and all(0.0 <= v <= 1.0 for v in odd)
+
+
+def test_action_focus_follows_the_movement_and_ignores_what_is_said() -> None:
+    seconds = 600
+    motion = [2.0] * seconds
+    motion[400:430] = [40.0] * 30
+    words = [{"t": 100 + i * 0.2, "d": 0.2, "w": "wow"} for i in range(150)]  # excited talk from 100 s to 130 s
+    levels = [-30.0] * seconds
+    talk = engine.find_moments(seconds, [], levels, words, length=30, count=1)
+    action = engine.find_moments(seconds, [], levels, words, length=30, count=1, motion=motion, focus="action")
+    assert 95 <= talk["moments"][0]["start"] <= 130 and "Excited or fast speech" in talk["moments"][0]["reasons"]
+    assert 385 <= action["moments"][0]["start"] <= 415 and action["moments"][0]["end"] >= 425
+    assert action["moments"][0]["reasons"] == ["Fast action on screen"]
+    assert talk["signals"] == {"replays": False, "audio": True, "speech": True, "motion": False}
+    assert action["signals"] == {"replays": False, "audio": True, "speech": True, "motion": True}
+
+
+def test_action_focus_names_a_loud_part_as_sound_not_as_a_reaction() -> None:
+    levels = [-40.0] * 300
+    levels[200:215] = [-8.0] * 15
+    found = engine.find_moments(300, [], levels, [], length=20, count=1, motion=[3.0] * 300, focus="action")
+    assert found["moments"][0]["reasons"] == ["Loud sound"]
+    assert engine.find_moments(300, [], levels, [], length=20, count=1)["moments"][0]["reasons"] == ["Loud reaction"]
+
+
+def test_action_focus_with_nothing_to_measure() -> None:
+    found = engine.find_moments(300, [], [], [{"t": 5.0, "d": 0.3, "w": "wow"}] * 40, focus="action")
+    assert found["moments"] == [] and "no picture that could be read" in found["note"]
+
+
+def test_an_unknown_focus_means_talk() -> None:
+    levels = [-40.0] * 300
+    levels[200:215] = [-8.0] * 15
+    assert engine.find_moments(300, [], levels, [], focus="games") == engine.find_moments(300, [], levels, [])
 
 
 def test_download_audio_from_an_unreachable_address(ytdlp: Any, tmp_path: Path) -> None:
