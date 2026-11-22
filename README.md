@@ -114,6 +114,10 @@ With **Game action on screen**, what is said does not count. This is meant for g
 
 For a link, this choice downloads the smallest copy of the whole video instead of only its sound, which is some hundreds of megabytes for a stream of many hours. Movement is a rough stand-in for action: a fast camera pan through an empty street scores like a fight. Review the moments before you render them.
 
+With this choice the app keeps only moments where at least half of the clip moves far more than is usual for the video. That can be fewer moments than you asked for, and the app says so. If no part of the video stands out in movement, it falls back to sound and replays and tells you. It also leaves the title of each moment empty, because what is said during game action is rarely about it. You can type a title yourself.
+
+The first screen also has the two switches for text on the shorts, captions and the title at the top. Untick both for shorts with no text on them.
+
 Then, for both choices:
 
 1. **The weights are shared over the signals that exist.** Not every video has all three. If a video has no replay data, audio and speech are scaled up to 0.6 and 0.4. If only audio is available, it counts for everything. The app tells you which signals it used.

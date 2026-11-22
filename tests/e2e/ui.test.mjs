@@ -1155,6 +1155,37 @@ test('source: game action can be chosen, is sent, shown and remembered', async (
   await session.close();
 });
 
+test('source: captions and the title can be switched off before the search starts', async () => {
+  const { page, problems, close } = await open();
+  const ticked = (id) => page.evaluate((sel) => document.querySelector(sel).checked, id);
+  assert.equal(await text(page, '#pre-text legend'), 'Text on the shorts');
+  assert.deepEqual(await page.locator('#pre-text label').allTextContents(), ['Add captions', 'Add a title at the top']);
+  assert.equal(await page.locator('#pre-captions').isChecked(), true);
+  assert.equal(await page.locator('#pre-title').isChecked(), true);
+  await page.uncheck('#pre-captions');
+  await page.uncheck('#pre-title');
+  await toMoments(page);
+  assert.equal(await page.locator('#opt-captions').isChecked(), false);
+  assert.equal(await page.locator('#opt-title').isChecked(), false);
+  // a change on the review screen shows on the first screen as well
+  await page.check('#opt-title');
+  assert.equal(await ticked('#pre-title'), true);
+  assert.equal(await ticked('#pre-captions'), false);
+  await page.uncheck('#opt-title');
+  assert.equal(await ticked('#pre-title'), false);
+  await toResults(page);
+  const sent = apiLog('POST', '/api/render')[0].body.options;
+  assert.equal(sent.captions, false);
+  assert.equal(sent.showTitle, false);
+  // the choice is remembered
+  await page.reload();
+  await page.waitForSelector('#pre-text', { state: 'attached' });
+  assert.equal(await ticked('#pre-captions'), false);
+  assert.equal(await ticked('#pre-title'), false);
+  assert.deepEqual(problems, []);
+  await close();
+});
+
 test('choices are remembered between visits', async () => {
   const { page, problems, close } = await open();
   await page.locator('#clip-length').fill('45');
