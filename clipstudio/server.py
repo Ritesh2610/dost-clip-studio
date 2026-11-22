@@ -308,6 +308,7 @@ class AnalyzeRequest:
     upload: Upload | None
     clip_length: int
     count: int
+    focus: str = "talk"  # "talk": what is said and how people reacted; "action": what happens on screen
 
 
 @dataclass(frozen=True)
@@ -557,6 +558,10 @@ class App:
         if count is None or not 1 <= count <= MAX_CLIPS:
             raise AppError(400, "invalid_count", f"The number of moments must be a whole number from 1 to {MAX_CLIPS}.")
 
+        focus = body.get("focus", "talk")
+        if focus not in ("talk", "action"):
+            raise AppError(400, "invalid_focus", 'What to look for must be "talk" or "action".')
+
         upload: Upload | None = None
         clean_url: str | None = None
         if url is not None:
@@ -573,7 +578,7 @@ class App:
                     404, "upload_not_found", "That video file is no longer on hand.", "Choose the file again."
                 )
         self._require_tools(links=clean_url is not None)
-        return AnalyzeRequest(clean_url, upload, clip_length, count)
+        return AnalyzeRequest(clean_url, upload, clip_length, count, focus)
 
     def start_analyze(self, request: AnalyzeRequest) -> Job:
         return self._submit("analyze", lambda job: self._run_analyze(job, request))
@@ -617,33 +622,59 @@ class App:
                 heatmap = list(source.get("heatmap") or [])
                 job.check()
 
+                action = request.focus == "action"
                 levels: list[float] = []
+                motion: list[float] = []
+                media: Path | None = None
                 try:
-                    if request.url is not None:
+                    if request.url is None:
+                        media = Path(source["path"])
+                    elif action:
+                        step = "Getting a small copy of the video"
+                        job.update(step, 0.2)
+                        if duration >= 3600:
+                            hours = duration / 3600
+                            self.log(f"[analyze] the video is {hours:.1f} hours long, so this step takes a while")
+                        watch = self._sound_progress(job, 0.2, 0.5, step=step, noun="small copy of the video")
+                        media = Path(engine.download_preview(source["url"], work, progress=watch))
+                    else:
                         job.update("Getting the sound of the video", 0.2)
                         if duration >= 3600:
-                            self.log(
-                                f"[analyze] the video is {duration / 3600:.1f} hours long, so this step takes a while"
-                            )
-                        audio: Path | str = engine.download_audio(
-                            source["url"], work, progress=self._sound_progress(job, 0.2, 0.55)
+                            hours = duration / 3600
+                            self.log(f"[analyze] the video is {hours:.1f} hours long, so this step takes a while")
+                        media = Path(
+                            engine.download_audio(source["url"], work, progress=self._sound_progress(job, 0.2, 0.55))
                         )
-                    else:
-                        audio = Path(source["path"])
                     job.update("Listening for loud moments", 0.55)
-                    levels = list(engine.audio_levels(audio))
+                    levels = list(engine.audio_levels(media))
                 except JobCancelled:
                     raise
-                except Exception as error:  # sound is one signal of three: carry on without it
+                except Exception as error:  # sound is one signal of several: carry on without it
                     self.log(
                         "[analyze] the sound could not be measured, carrying on without it: "
                         f"{self._friendly(error)}\n{traceback.format_exc().rstrip()}"
                     )
                     levels = []
+                if action and media is not None:
+                    try:
+                        job.update("Watching for fast action on screen", 0.7)
+                        motion = list(engine.motion_levels(media))
+                    except JobCancelled:
+                        raise
+                    except Exception as error:  # carry on with the signals that are left
+                        self.log(
+                            "[analyze] the picture could not be measured, carrying on without it: "
+                            f"{self._friendly(error)}\n{traceback.format_exc().rstrip()}"
+                        )
+                        motion = []
 
                 job.update("Choosing the strongest moments", 0.85)
                 found = engine.find_moments(
-                    duration, heatmap, levels, words, length=request.clip_length, count=request.count
+                    *(duration, heatmap, levels, words),
+                    length=request.clip_length,
+                    count=request.count,
+                    motion=motion,
+                    focus=request.focus,
                 )
                 job.check()
                 signals = found.get("signals") or {}
@@ -658,7 +689,8 @@ class App:
                         "thumbnail": self._thumbnail(source.get("thumbnail")),
                         "wasLive": bool(source.get("was_live")),
                     },
-                    "signals": {name: bool(signals.get(name)) for name in ("replays", "audio", "speech")},
+                    "signals": {name: bool(signals.get(name)) for name in ("replays", "audio", "speech", "motion")},
+                    "focus": request.focus,
                     "captionLabel": str(source.get("caption_label") or ""),
                     "note": str(found.get("note") or ""),
                     "moments": self._public_moments(found.get("moments") or [], duration),
@@ -666,8 +698,16 @@ class App:
             finally:
                 shutil.rmtree(work, ignore_errors=True)
 
-    def _sound_progress(self, job: Job, low: float, high: float) -> Callable[[float], None]:
-        """Makes the function that the sound download calls with the share that has arrived.
+    def _sound_progress(
+        self,
+        job: Job,
+        low: float,
+        high: float,
+        *,
+        step: str = "Getting the sound of the video",
+        noun: str = "sound of the video",
+    ) -> Callable[[float], None]:
+        """Makes the function that a download for analysis calls with the share that has arrived.
 
         It shows the share in the job, at most once a second, writes every tenth to the log, and stops the
         download when the job has been cancelled. It may be called from several threads at once.
@@ -687,10 +727,10 @@ class App:
                 if log:
                     last["tenth"] = tenth
             if log:
-                self.log(f"[analyze] sound of the video: {tenth * 10}% downloaded")
+                self.log(f"[analyze] {noun}: {tenth * 10}% downloaded")
             if show:
                 percent = round(share * 100)
-                job.update(f"Getting the sound of the video: {percent}%", low + (high - low) * share)
+                job.update(f"{step}: {percent}%", low + (high - low) * share)
             else:
                 job.check()
 

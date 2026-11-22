@@ -441,6 +441,63 @@ def audio_levels(source: str | Path) -> list[float]:
     return levels
 
 
+_KEY_FRAME_GAP = 6.0  # seconds: with key frames further apart than this, one frame a second is compared instead
+
+
+def _picture_changes(source: str | Path, key_frames_only: bool) -> tuple[list[tuple[float, float]], str]:
+    """(time, change) for each compared frame, where change is the mean difference from the frame before (0..255)."""
+    chain = "scale=96:54,format=gray,tblend=all_mode=difference,signalstats,"
+    chain += "metadata=mode=print:key=lavfi.signalstats.YAVG:file=-"
+    command = [
+        *(ffmpeg_exe(), "-hide_banner", "-nostats", "-loglevel", "error"),
+        *(("-skip_frame", "nokey") if key_frames_only else ()),
+        *(*_input_args(source), "-an", "-vf", chain if key_frames_only else "fps=1," + chain),
+        *("-fps_mode", "passthrough", "-f", "null", "-"),
+    ]
+    process = _run(command)
+    samples: list[tuple[float, float]] = []
+    at: float | None = None
+    for line in process.stdout.splitlines():
+        if line.startswith("frame:"):
+            found = re.search(r"pts_time:(-?[0-9.]+)", line)
+            at = _number(found.group(1), -1.0) if found else None
+        elif line.startswith("lavfi.signalstats.YAVG=") and at is not None and at >= 0:
+            samples.append((at, max(0.0, min(255.0, _number(line.split("=", 1)[1].strip())))))
+            at = None
+    return samples, "" if samples or process.returncode == 0 else process.stderr
+
+
+def motion_levels(source: str | Path) -> list[float]:
+    """How much the picture changes during each second of the video (0 is a still picture, 255 the most possible).
+
+    Only key frames are compared, which takes seconds even for a stream of many hours. When the key frames lie
+    too far apart for that, one frame a second is compared instead, which is slower. One changed frame on its
+    own, such as a cut to another scene, is not counted as movement.
+
+    Returns an empty list when the file has no picture. Raises RuntimeError when the file cannot be read.
+    """
+    samples, problem = _picture_changes(source, key_frames_only=True)
+    sparse = not problem and (len(samples) < 3 or samples[-1][0] / len(samples) > _KEY_FRAME_GAP)
+    if sparse or "skip_frame" in problem:  # ffmpeg refuses the key-frame setting for a file with sound only
+        samples, problem = _picture_changes(source, key_frames_only=False)
+    if problem:
+        low = problem.lower()
+        if "does not contain any stream" in low or "matches no streams" in low:
+            return []  # sound only: the caller carries on without the movement signal
+        reason = (problem.strip().splitlines() or ["unknown error"])[-1][:300]
+        raise RuntimeError("ffmpeg could not read the picture: " + reason)
+    samples.sort()
+    values = [value for _, value in samples]
+    levels: list[float] = []
+    for i, (at, _) in enumerate(samples):
+        # the middle one of three neighbours: a single jump, which is what a cut looks like, disappears
+        near = sorted(values[max(0, i - 1) : i + 2])
+        value = near[len(near) // 2]
+        last = min(int(_MAX_SECONDS), math.ceil(at))
+        levels.extend([value] * (last - len(levels)))  # this frame speaks for the seconds since the one before
+    return levels
+
+
 def _remove_leftovers(folder: Path, stem: str, before: set[str]) -> None:
     """After a failed download, deletes the files it left behind (`stem`.* that were not there before)."""
     try:
@@ -492,16 +549,12 @@ def _download_share(status: Any) -> float | None:
     return None
 
 
-def download_audio(url: str, work: Path, progress: Callable[[float], None] | None = None) -> Path:
-    """Fetches the smallest audio track, which is enough to measure loudness.
-
-    `progress` is called with the share that has arrived, from 0 to 1, many times a second and possibly from
-    several threads. An exception it raises stops the download, which is how a job is cancelled.
-    """
+def _download_whole(url: str, work: Path, stem: str, wanted: str, progress: Callable[[float], None] | None) -> Path:
+    """Downloads the whole video in the format `wanted` (a yt-dlp format choice) as the file `stem` in `work`."""
     work = Path(work)
     before = _listing(work)
     # "%" starts a field in yt-dlp's name template, so one that belongs to the folder name is doubled
-    template = str(work / "audio").replace("%", "%%") + ".%(ext)s"
+    template = str(work / stem).replace("%", "%%") + ".%(ext)s"
 
     def report(status: Any) -> None:
         share = _download_share(status)
@@ -509,7 +562,7 @@ def download_audio(url: str, work: Path, progress: Callable[[float], None] | Non
             progress(share)
 
     options = ydl_options(
-        format="worstaudio/bestaudio/worst",
+        format=wanted,
         outtmpl=template,
         overwrites=True,
         concurrent_fragment_downloads=AUDIO_PIECES_AT_ONCE,
@@ -518,10 +571,29 @@ def download_audio(url: str, work: Path, progress: Callable[[float], None] | Non
     try:
         with open_ydl(options) as ydl:
             info = ydl.extract_info(url, download=True)
-            return _downloaded_file(ydl, info, work, "audio")
+            return _downloaded_file(ydl, info, work, stem)
     except BaseException:
-        _remove_leftovers(work, "audio", before)
+        _remove_leftovers(work, stem, before)
         raise
+
+
+def download_audio(url: str, work: Path, progress: Callable[[float], None] | None = None) -> Path:
+    """Fetches the smallest audio track, which is enough to measure loudness.
+
+    `progress` is called with the share that has arrived, from 0 to 1, many times a second and possibly from
+    several threads. An exception it raises stops the download, which is how a job is cancelled.
+    """
+    return _download_whole(url, work, "audio", "worstaudio/bestaudio/worst", progress)
+
+
+def download_preview(url: str, work: Path, progress: Callable[[float], None] | None = None) -> Path:
+    """Fetches the smallest copy of the video that has both picture and sound, to measure movement and loudness.
+
+    For a stream of many hours this is some hundreds of megabytes. `progress` works as in download_audio.
+    """
+    both = "[vcodec!=none][acodec!=none]"
+    wanted = f"worst{both}[height<=240]/worstvideo[height<=240]+worstaudio/worst{both}/worstvideo+worstaudio/worst"
+    return _download_whole(url, work, "preview", wanted, progress)
 
 
 # ----------------------------------------------------------------- scoring
@@ -605,6 +677,26 @@ def energy_signal(levels: list[float], seconds: int) -> list[float] | None:
     return [round(v, 9) for v in _smooth(signal, 1)]
 
 
+def motion_signal(levels: list[float], seconds: int) -> list[float] | None:
+    """How much each second stands out in movement on screen (0..1), or None with too little picture to judge."""
+    if seconds <= 0 or not isinstance(levels, (list, tuple)) or len(levels) < 10:
+        return None
+    measured = [max(0.0, min(255.0, _number(x))) for x in levels[:seconds]]
+    median = statistics.median(measured)
+    measured += [median] * (seconds - len(measured))  # seconds without a measurement count as ordinary
+    spread = statistics.median(abs(x - median) for x in measured) * 1.4826 or 1.0
+    signal = [max(0.0, min(1.0, (level - median) / (3 * spread))) for level in measured]
+    return [round(v, 9) for v in _smooth(signal, 2)]
+
+
+FOCUS_WEIGHTS = {
+    # what people say and how the audience reacted
+    "talk": {"replays": 0.5, "audio": 0.3, "speech": 0.2},
+    # what happens on screen: for game streams, where the talking is not the point
+    "action": {"motion": 0.45, "audio": 0.3, "replays": 0.25},
+}
+
+
 def speech_signal(words: list[Word], seconds: int) -> list[float] | None:
     """Excited words and fast talking per second (0..1), or None when there are too few captions to judge."""
     return _speech(_clean_words(words), seconds)
@@ -669,8 +761,14 @@ def find_moments(
     words: list[Word],
     length: int = 30,
     count: int = 5,
+    *,
+    motion: list[float] | None = None,
+    focus: str = "talk",
 ) -> dict[str, Any]:
     """Ranks the strongest stretches of the video.
+
+    `focus` chooses what counts: "talk" looks at replays, loudness and what is said; "action" looks at
+    movement on screen (`motion`, from motion_levels), loudness and replays, and ignores what is said.
 
     Returns {'moments': [...], 'signals': {...}, 'note': str}. Every moment lies inside the video, is between
     MIN_CLIP seconds and `length` seconds long, and no two moments overlap. Scores are 1..100, the best is 100.
@@ -684,14 +782,18 @@ def find_moments(
         "replays": heat_signal(heatmap, seconds),
         "audio": energy_signal(levels, seconds),
         "speech": _speech(words, seconds),
+        "motion": motion_signal(motion or [], seconds),
     }
-    weights = {"replays": 0.5, "audio": 0.3, "speech": 0.2}
-    used = {name: s for name, s in signals.items() if s}
+    action = focus == "action"
+    weights = FOCUS_WEIGHTS["action" if action else "talk"]
+    used = {name: s for name, s in signals.items() if s and name in weights}
     summary = {name: bool(s) for name, s in signals.items()}
     if seconds < length:
         return {"moments": [], "signals": summary, "note": "The video is shorter than the clip length you chose."}
     if not used:
         note = "There was nothing to measure: no replay data, no readable audio and no captions."
+        if action:
+            note = "There was nothing to measure: no picture that could be read, no readable audio and no replay data."
         return {"moments": [], "signals": summary, "note": note}
 
     total = sum(weights[name] for name in used)
@@ -750,10 +852,12 @@ def find_moments(
         def mean(name: str, a: int = a, b: int = b) -> float:
             return sum(used[name][a:b]) / (b - a)
 
+        if "motion" in used and mean("motion") >= max(0.2, 1.6 * averages["motion"]):
+            reasons.append("Fast action on screen")
         if "replays" in used and mean("replays") >= max(0.35, 1.5 * averages["replays"]):
             reasons.append("Viewers replayed this part")
         if "audio" in used and mean("audio") >= max(0.2, 1.6 * averages["audio"]):
-            reasons.append("Loud reaction")
+            reasons.append("Loud sound" if action else "Loud reaction")
         if "speech" in used and mean("speech") >= max(0.2, 1.6 * averages["speech"]):
             reasons.append("Excited or fast speech")
         if not reasons and flat:
