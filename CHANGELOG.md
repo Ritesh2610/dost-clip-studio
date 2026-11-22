@@ -9,6 +9,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ### Added
 
 - A choice of what to look for: "Talk and reactions", as before, or "Game action on screen", which goes by movement in the picture, loudness and replay data, and not by what is said.
+- With "Game action on screen", only moments with clear action are kept, even when that is fewer than the number asked for, and no title is made up from what is said.
+- The switches for captions and for the title at the top are on the first screen as well as on the review screen.
 
 ### Changed
 
