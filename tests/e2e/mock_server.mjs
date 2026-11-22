@@ -134,7 +134,8 @@ function makeAnalysis(scenario, source, count) {
     title: bad ? xss(`t${i + 1}`).slice(0, 78) : m.title,
   }));
   let note = '';
-  let signals = { replays: !fromFile, audio: true, speech: true };
+  const action = source.focus === 'action';
+  let signals = { replays: !fromFile, audio: true, speech: true, motion: action };
   let captionLabel = 'en (automatic)';
   if (scenario.video === 'no-captions') { signals = { ...signals, speech: false }; captionLabel = ''; moments = moments.map((m) => ({ ...m, text: '', reasons: m.reasons.filter((r) => !/speech/.test(r)).concat(m.reasons.every((r) => /speech/.test(r)) ? ['Loud reaction'] : []) })); }
   if (scenario.video === 'no-replays') { signals = { ...signals, replays: false }; note = 'YouTube has no replay data for this video, so the moments come from the audio and the captions.'; }
@@ -155,9 +156,10 @@ function makeAnalysis(scenario, source, count) {
       wasLive: !fromFile,
     },
     signals,
+    focus: action ? 'action' : 'talk',
     captionLabel,
     note,
-    moments,
+    moments: action ? moments.map((m, i) => (i === 0 ? { ...m, reasons: ['Fast action on screen'] } : m)) : moments,
   };
 }
 
@@ -364,7 +366,7 @@ export function startMock({ port = 5412 } = {}) {
         source = { kind: 'file', name: uploads.get(body.uploadId).name };
       }
       if (scenario.analyze === 'reject') return fail(res, 400, 'url_not_allowed', scenario.video === 'xss' ? xss('rejected') : 'That does not look like a video link.', scenario.video === 'xss' ? xss('hint') : 'Paste the full address of a YouTube video or finished stream.');
-      const job = newJob('analyze', { analysisId: `an-${++seq}`, scenario: { ...scenario }, source: { ...source, clipLength: body.clipLength }, count: body.count });
+      const job = newJob('analyze', { analysisId: `an-${++seq}`, scenario: { ...scenario }, source: { ...source, clipLength: body.clipLength, focus: body.focus }, count: body.count });
       return json(res, 202, { jobId: job.id });
     }
 

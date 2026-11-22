@@ -376,7 +376,7 @@ test('normal run: source, progress, moments and results', async () => {
   assert.equal(await page.evaluate(() => document.activeElement.id), 'h-progress', 'focus moves to the new stage');
   assert.equal(await text(page, '#steps [aria-current="step"]'), 'Progress');
   assert.equal(await page.locator('#analyze-go').isDisabled(), true);
-  assert.deepEqual(apiLog('POST', '/api/analyze')[0].body, { clipLength: 30, count: 5, permission: true, url: GOOD_URL });
+  assert.deepEqual(apiLog('POST', '/api/analyze')[0].body, { clipLength: 30, count: 5, focus: 'talk', permission: true, url: GOOD_URL });
   assert.match(apiLog('POST', '/api/analyze')[0].contentType, /^application\/json/);
   assert.equal(await page.evaluate(() => { const bar = document.querySelector('#an-bar'); return bar.tagName === 'PROGRESS' && bar.labels.length === 1 && bar.labels[0].textContent; }), 'Progress of the search');
   assert.equal(await page.locator('#an-step').getAttribute('role'), 'status');
@@ -561,7 +561,7 @@ test('normal run: source, progress, moments and results', async () => {
   assert.deepEqual(await page.locator('#opt-position label').allTextContents(), ['Left', 'Centre', 'Right']);
   await page.check('input[name="position"][value="right"]');
   assert.equal(await page.locator('#opt-captions').isEnabled(), true);
-  assert.equal(await text(page, 'label[for="opt-captions"]'), 'Burn captions into the video');
+  assert.equal(await text(page, 'label[for="opt-captions"]'), 'Add captions to the video');
   assert.equal(await text(page, 'label[for="opt-title"]'), 'Show the title at the top');
   await page.uncheck('#opt-captions');
   await assertAllLabelled(page, 'stage 3');
@@ -782,7 +782,7 @@ test('no captions: said in plain words, and burning captions is switched off', a
   const box = page.locator('#opt-captions');
   assert.equal(await box.isDisabled(), true);
   assert.equal(await box.isChecked(), false);
-  assert.equal(await text(page, '#captions-help'), 'No captions were found for this video, so there is nothing to burn in.');
+  assert.equal(await text(page, '#captions-help'), 'No captions were found for this video, so there are none to add.');
   assert.match(await box.getAttribute('aria-describedby'), /captions-help/);
   assert.equal(await page.locator('#opt-title').isEnabled(), true);
   assert.equal(await text(page, '#moments > li:nth-child(1) .cs-text'), 'No words were found for this part.');
@@ -860,7 +860,7 @@ test('upload flow: progress, the file name header, and stopping', async () => {
   assert.equal(upload.contentType, 'application/octet-stream');
   const body = apiLog('POST', '/api/analyze')[0].body;
   assert.match(body.uploadId, /^up-\d+$/);
-  assert.deepEqual(Object.keys(body).sort(), ['clipLength', 'count', 'permission', 'uploadId']);
+  assert.deepEqual(Object.keys(body).sort(), ['clipLength', 'count', 'focus', 'permission', 'uploadId']);
   assert.equal(await text(page, '#video-title'), name);
   assert.equal(await text(page, '#video-meta'), '1:23:45 long.');
   assert.equal((await page.locator('#signals li').allTextContents())[0], 'Replay data from YouTube: not available for a file from this computer');
@@ -1127,6 +1127,34 @@ test('the app stops answering: the page says so instead of hanging', async () =>
   await close();
 });
 
+test('source: game action can be chosen, is sent, shown and remembered', async () => {
+  let session = await open();
+  let { page } = session;
+  assert.equal(await text(page, '#focus legend'), 'What to look for');
+  assert.deepEqual(await page.locator('#focus label').allTextContents(), ['Talk and reactions', 'Game action on screen']);
+  assert.equal(await page.locator('input[name="focus"][value="talk"]').isChecked(), true);
+  assert.equal(await page.locator('#focus-help').isHidden(), true);
+  await page.check('input[name="focus"][value="action"]');
+  assert.equal(await page.locator('#focus-help').isVisible(), true);
+  assert.match(await text(page, '#focus-help'), /downloads a small copy of the whole video/);
+  await toMoments(page);
+  assert.equal(apiLog('POST', '/api/analyze')[0].body.focus, 'action');
+  assert.deepEqual(await page.locator('#signals li').allTextContents(), ['Replay data from YouTube: found', 'Movement on screen: measured', 'Audio loudness: measured', 'Captions: en (automatic)']);
+  assert.match(await text(page, '#moments > li:first-child'), /Fast action on screen/);
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('clipstudio.options')).focus), 'action');
+  assert.deepEqual(session.problems, []);
+  await session.close();
+
+  // a stored value that is not one of the two choices is ignored
+  session = await open({ goto: false });
+  page = session.page;
+  await page.addInitScript(() => localStorage.setItem('clipstudio.options', '{"focus":"<img src=x onerror=alert(1)>"}'));
+  await page.goto(mock.url);
+  await page.waitForSelector('#analyze-go');
+  assert.equal(await page.locator('input[name="focus"][value="talk"]').isChecked(), true);
+  await session.close();
+});
+
 test('choices are remembered between visits', async () => {
   const { page, problems, close } = await open();
   await page.locator('#clip-length').fill('45');
@@ -1138,13 +1166,13 @@ test('choices are remembered between visits', async () => {
   assert.equal(await text(page, '#clip-count-out'), '1 clip');
   await page.locator('#clip-count').fill('2');
   await toMoments(page);
-  assert.deepEqual(apiLog('POST', '/api/analyze')[0].body, { clipLength: 45, count: 2, permission: true, url: GOOD_URL });
+  assert.deepEqual(apiLog('POST', '/api/analyze')[0].body, { clipLength: 45, count: 2, focus: 'talk', permission: true, url: GOOD_URL });
   assert.equal(await endField(page, 1).inputValue(), '25:57.3');
   await page.check('input[name="layout"][value="fill"]');
   await page.check('input[name="position"][value="left"]');
   await page.uncheck('#opt-title');
   await page.uncheck('#opt-captions');
-  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('clipstudio.options'))), { clipLength: 45, count: 2, layout: 'fill', zoom: 1.3, position: 'left', captions: false, showTitle: false });
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('clipstudio.options'))), { clipLength: 45, count: 2, focus: 'talk', layout: 'fill', zoom: 1.3, position: 'left', captions: false, showTitle: false });
 
   await page.evaluate(() => sessionStorage.clear());
   await page.reload();
@@ -1285,7 +1313,7 @@ test('keyboard only: the whole flow without a mouse', async () => {
   await tabTo(page, '#analyze-go');
   await page.keyboard.press('Enter');
   await page.waitForSelector('#stage-moments:not([hidden])');
-  assert.deepEqual(apiLog('POST', '/api/analyze')[0].body, { clipLength: 32, count: 3, permission: true, url: 'https://youtu.be/mockvideo01' });
+  assert.deepEqual(apiLog('POST', '/api/analyze')[0].body, { clipLength: 32, count: 3, focus: 'talk', permission: true, url: 'https://youtu.be/mockvideo01' });
 
   // stage 3: focus is on its heading, so the next Tab stops are inside it
   assert.equal(await page.evaluate(() => document.activeElement.id), 'h-moments');
